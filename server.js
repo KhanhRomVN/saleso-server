@@ -1,0 +1,82 @@
+//* NPM Package
+const express = require("express");
+require("dotenv").config();
+const cookieParser = require("cookie-parser");
+const helmet = require("helmet");
+const compression = require("compression");
+const cors = require("cors");
+const http = require("http");
+const socketIo = require("socket.io");
+
+//* MongoDB
+const { connectDB } = require("./config/mongoDB");
+
+//* Socket Handler
+const socketHandler = require("./socket/index");
+
+//* Routes
+const routes = require("./routes");
+const { router: discountCleanupRouter } = require("./services/discountCleanup");
+
+//* Error Handling Middleware
+const { errorHandler } = require("./middleware/errorHandler");
+
+//* CORS Configuration
+const whiteList = process.env.WHITE_LIST.split(",");
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (!origin || whiteList.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true,
+};
+
+require("./config/scheduledTasks");
+
+const app = express();
+const server = http.createServer(app);
+const io = socketIo(server, {
+  cors: { origin: process.env.FRONTEND_URL, credentials: true },
+});
+
+//* Middleware
+app.use(express.static("public"));
+app.use(helmet());
+app.use(compression());
+app.use(cors(corsOptions));
+app.use(express.json());
+app.use(cookieParser());
+
+//* Check Routes
+app.get("/", (req, res) => {
+  res.json({ message: `Server running at ${process.env.PORT}` });
+});
+
+//* API Routes
+Object.entries(routes).forEach(([path, router]) => {
+  app.use(`/${path}`, router);
+});
+
+app.use("/api", discountCleanupRouter);
+
+//* Socket Handler
+socketHandler(io);
+
+//* Error Handling Middleware
+app.use(errorHandler);
+
+//* Start Server
+const PORT = process.env.PORT || 8080;
+connectDB()
+  .then(() => {
+    server.listen(PORT, () => {
+      console.log(`Server is running on port: ${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error("Failed to connect to database", err);
+    process.exit(1);
+  });
