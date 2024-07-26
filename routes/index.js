@@ -2,17 +2,21 @@
 const review = require("./customer/review.route");
 const cart = require("./customer/cart.route");
 const order = require("./customer/order.route");
+const customer = require("./customer/customer.route");
 
 // Seller
 const product = require("./seller/product.route");
 const invoice = require("./seller/invoice.route");
-const seller = require("./seller/seller.route");
+const category = require("./seller/category.route");
 
 // User
 const auth = require("./user/auth.route");
 const user = require("./user/user.route");
 const chat = require("./user/chat.route");
 const notification = require("./user/notification.route");
+
+// Developer
+const image = require("./developer/image.route");
 
 module.exports = {
   auth,
@@ -21,8 +25,10 @@ module.exports = {
   review,
   chat,
   cart,
-  seller,
+  category,
   notification,
   order,
+  customer,
   invoice,
+  image,
 };

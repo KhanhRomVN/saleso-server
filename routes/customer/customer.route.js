@@ -6,9 +6,8 @@ const router = express.Router();
 const routes = [
   {
     method: "post",
-    path: "/return/:",
-    middleware: [authCustomerToken],
-    handler: SellerController.getListCategory,
+    path: "/category/:category_name",
+    handler: CustomerController.getProductCategory,
   },
 ];
 
