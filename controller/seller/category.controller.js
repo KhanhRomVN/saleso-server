@@ -27,6 +27,20 @@ const getCategories = (req, res) =>
     return categoriesWithProductCount;
   });
 
+const getRootCategories = (req, res) =>
+  handleRequest(req, res, async () => {
+    const rootCategories = await CategoryModel.getRootCategories();
+    const rootCategoriesWithProductCount = await Promise.all(
+      rootCategories.map(async (category) => {
+        const { count } = await ProductModel.getNumberProductByCategory(
+          category.name
+        );
+        return { ...category, number_product: count };
+      })
+    );
+    return rootCategoriesWithProductCount;
+  });
+
 const createCategory = (req, res) =>
   handleRequest(req, res, async (req) => {
     const { path } = req.body;
@@ -68,6 +82,7 @@ module.exports = {
   getCategories,
   createCategory,
   getCategoryById,
+  getRootCategories,
   getChildrenCategories,
   updateCategory,
   deleteCategory,

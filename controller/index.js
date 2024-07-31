@@ -8,6 +8,8 @@ const CustomerController = require("./customer/customer.controller");
 const ProductController = require("./seller/product.controller");
 const InvoiceController = require("./seller/invoice.controller");
 const CategoryController = require("./seller/category.controller");
+const DiscountController = require("./seller/discount.controller");
+const RedemptionController = require("./seller/redemption.controller");
 
 // User
 const AuthController = require("./user/auth.controller");
@@ -31,4 +33,6 @@ module.exports = {
   NotificationController,
   InvoiceController,
   ImageController,
+  DiscountController,
+  RedemptionController,
 };

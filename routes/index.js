@@ -8,6 +8,8 @@ const customer = require("./customer/customer.route");
 const product = require("./seller/product.route");
 const invoice = require("./seller/invoice.route");
 const category = require("./seller/category.route");
+const discount = require("./seller/discount.route");
+const redemption = require("./seller/redemption.route");
 
 // User
 const auth = require("./user/auth.route");
@@ -31,4 +33,6 @@ module.exports = {
   customer,
   invoice,
   image,
+  discount,
+  redemption,
 };

@@ -19,6 +19,12 @@ const routes = [
     path: "/get/children/:value",
     handler: CategoryController.getChildrenCategories,
   },
+  {
+    method: "get",
+    path: "/root",
+    handler: CategoryController.getRootCategories,
+  },
+
   { method: "get", path: "/all", handler: CategoryController.getCategories },
   {
     method: "put",

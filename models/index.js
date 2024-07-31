@@ -7,6 +7,8 @@ const ReviewModel = require("./customer/ReviewModel");
 const ProductModel = require("./seller/ProductModel");
 const InvoiceModel = require("./seller/InvoiceModel");
 const CategoryModel = require("./seller/CategoryModel");
+const DiscountModel = require("./seller/DiscountModel");
+const RedemptionModel = require("./seller/RedemptionModel");
 
 // User
 const ConversationModel = require("./user/ConversationModel");
@@ -34,4 +36,6 @@ module.exports = {
   UserDetailModel,
   UserModel,
   ImageModel,
+  DiscountModel,
+  RedemptionModel,
 };

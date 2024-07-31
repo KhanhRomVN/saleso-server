@@ -69,6 +69,14 @@ const createCategory = async (categoryPath) => {
   return await db.collection(COLLECTION_NAME).findOne({ path: currentPath });
 };
 
+const getRootCategories = async () => {
+  const db = getDB();
+  return await db
+    .collection(COLLECTION_NAME)
+    .find({ parentId: null })
+    .toArray();
+};
+
 const getCategoryById = async (id) => {
   const db = getDB();
   return await db
@@ -162,6 +170,7 @@ module.exports = {
   getCategories,
   createCategory,
   getCategoryById,
+  getRootCategories,
   getChildrenCategories,
   updateCategory,
   deleteCategory,
