@@ -32,7 +32,7 @@ const DiscountController = {
 
   getAllDiscounts: (req, res) =>
     handleRequest(req, res, async (req) => {
-      return await DiscountModel.getAllDiscounts(req.user._id);
+      return await DiscountModel.getAllDiscounts(req.user._id.toString());
     }),
 
   getActiveDiscounts: (req, res) =>
@@ -126,14 +126,20 @@ const DiscountController = {
         res.status(404).json({ error: "Discount not found" });
         return;
       }
-      if (discount.seller_id !== req.user._id) {
+      if (discount.seller_id !== req.user._id.toString()) {
         res
           .status(403)
           .json({ error: "You are not authorized to apply this discount" });
         return;
       }
-      // Here you would typically have some logic to apply the discount to the product
-      // For now, we'll just return a success message
+      const result = await DiscountModel.applyDiscountToProduct(
+        discountId,
+        productId
+      );
+      if (result.error) {
+        res.status(400).json({ error: result.error });
+        return;
+      }
       return { message: "Discount applied successfully" };
     }),
 

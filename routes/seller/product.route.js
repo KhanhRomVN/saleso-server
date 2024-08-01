@@ -1,16 +1,7 @@
 const express = require("express");
 const { ProductController } = require("../../controller/index");
 const { authSellerToken } = require("../../middleware/authToken");
-const { ObjectId } = require("mongodb");
 const router = express.Router();
-
-const validateObjectId = (req, res, next) => {
-  const id = req.params.product_id || req.params.seller_id;
-  if (!ObjectId.isValid(id)) {
-    return res.status(400).json({ error: "Invalid ID" });
-  }
-  next();
-};
 
 const routes = [
   {
@@ -22,7 +13,6 @@ const routes = [
   {
     method: "get",
     path: "/:product_id",
-    middleware: [validateObjectId],
     handler: ProductController.getProductById,
   },
   {
@@ -44,13 +34,13 @@ const routes = [
   {
     method: "put",
     path: "/update/:product_id",
-    middleware: [authSellerToken, validateObjectId],
+    middleware: [authSellerToken],
     handler: ProductController.updateProduct,
   },
   {
     method: "delete",
     path: "/delete/:product_id",
-    middleware: [authSellerToken, validateObjectId],
+    middleware: [authSellerToken],
     handler: ProductController.deleteProduct,
   },
 ];

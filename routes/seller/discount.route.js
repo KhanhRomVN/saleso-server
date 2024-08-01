@@ -9,7 +9,7 @@ const routes = [
     path: "/create",
     handler: DiscountController.createDiscount,
   },
-  { method: "get", path: "/", handler: DiscountController.getAllDiscounts },
+  { method: "get", path: "/all", handler: DiscountController.getAllDiscounts },
   {
     method: "get",
     path: "/active",

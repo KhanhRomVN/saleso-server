@@ -1,6 +1,5 @@
 const { ProductModel } = require("../../models/index");
 const logger = require("../../config/logger");
-const { ObjectId } = require("mongodb");
 
 const handleRequest = async (req, res, operation) => {
   try {
@@ -29,76 +28,54 @@ const checkUserOwnership = async (product_id, seller_id) => {
   return product;
 };
 
-const createProduct = (req, res) => {
-  return handleRequest(req, res, async (req) => {
-    const productData = {
-      ...req.body,
-      seller_id: req.user._id.toString(),
-    };
-    const newProduct = await ProductModel.createProduct(productData);
-    return { message: "Product added successfully", product: newProduct };
-  });
+const ProductController = {
+  createProduct: (req, res) =>
+    handleRequest(req, res, async (req) => {
+      const productData = { ...req.body, seller_id: req.user._id.toString() };
+      const newProduct = await ProductModel.createProduct(productData);
+      return { message: "Product added successfully", product: newProduct };
+    }),
+
+  getProductById: (req, res) =>
+    handleRequest(req, res, async (req) =>
+      ProductModel.getProductByProdId(req.params.product_id)
+    ),
+
+  getProductsBySellerId: (req, res) =>
+    handleRequest(req, res, async (req) =>
+      ProductModel.getListProductBySellerId(req.params.seller_id)
+    ),
+
+  getProductsByCategory: (req, res) =>
+    handleRequest(req, res, async (req) =>
+      ProductModel.getListProductByCategory(req.params.category)
+    ),
+
+  getProductsFlashsale: (req, res) =>
+    handleRequest(req, res, async () => ProductModel.getProductsOnFlashSale()),
+
+  getAllProducts: (req, res) =>
+    handleRequest(req, res, async () => ProductModel.getAllProduct()),
+
+  updateProduct: (req, res) =>
+    handleRequest(req, res, async (req) => {
+      await checkUserOwnership(req.params.product_id, req.user._id.toString());
+      const updatedProduct = await ProductModel.updateProduct(
+        req.params.product_id,
+        req.body
+      );
+      return {
+        message: "Product updated successfully",
+        product: updatedProduct,
+      };
+    }),
+
+  deleteProduct: (req, res) =>
+    handleRequest(req, res, async (req) => {
+      await checkUserOwnership(req.params.product_id, req.user._id.toString());
+      await ProductModel.deleteProduct(req.params.product_id);
+      return { message: "Product deleted successfully" };
+    }),
 };
 
-const getProductById = (req, res) => {
-  return handleRequest(req, res, async (req) =>
-    ProductModel.getProductByProdId(req.params.product_id)
-  );
-};
-
-const getProductsBySellerId = (req, res) => {
-  return handleRequest(req, res, async (req) =>
-    ProductModel.getListProductBySellerId(req.params.seller_id)
-  );
-};
-
-const getProductsByCategory = (req, res) => {
-  return handleRequest(req, res, async (req) => {
-    return ProductModel.getListProductByCategory(req.params.category);
-  });
-};
-
-const getProductsFlashsale = (req, res) => {
-  return handleRequest(
-    req,
-    res,
-    async () => await ProductModel.getProductsOnFlashSale()
-  );
-};
-
-const getAllProducts = (req, res) => {
-  return handleRequest(req, res, async () => ProductModel.getAllProduct());
-};
-
-const updateProduct = (req, res) => {
-  return handleRequest(req, res, async (req) => {
-    await checkUserOwnership(req.params.product_id, req.user._id.toString());
-    const updatedProduct = await ProductModel.updateProduct(
-      req.params.product_id,
-      req.body
-    );
-    return {
-      message: "Product updated successfully",
-      product: updatedProduct,
-    };
-  });
-};
-
-const deleteProduct = (req, res) => {
-  return handleRequest(req, res, async (req) => {
-    await checkUserOwnership(req.params.product_id, req.user._id.toString());
-    await ProductModel.deleteProduct(req.params.product_id);
-    return { message: "Product deleted successfully" };
-  });
-};
-
-module.exports = {
-  createProduct,
-  getProductById,
-  getProductsBySellerId,
-  getProductsByCategory,
-  getProductsFlashsale,
-  getAllProducts,
-  updateProduct,
-  deleteProduct,
-};
+module.exports = ProductController;

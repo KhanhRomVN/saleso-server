@@ -211,6 +211,46 @@ const DiscountModel = {
       { $set: { status: "expired" } }
     );
   },
+
+  async applyDiscountToProduct(discountId, productId) {
+    const db = await getDB();
+    const session = db.client.startSession();
+
+    try {
+      await session.withTransaction(async () => {
+        const discountResult = await db
+          .collection(COLLECTION_NAME)
+          .updateOne(
+            { _id: new ObjectId(discountId) },
+            { $addToSet: { applicableProducts: productId } },
+            { session }
+          );
+
+        if (discountResult.modifiedCount === 0) {
+          throw new Error("Failed to update discount");
+        }
+
+        // Add discountId to applied_discounts in the product
+        const productResult = await db
+          .collection("products")
+          .updateOne(
+            { _id: new ObjectId(productId) },
+            { $addToSet: { applied_discounts: discountId } },
+            { session }
+          );
+
+        if (productResult.modifiedCount === 0) {
+          throw new Error("Failed to update product");
+        }
+      });
+
+      return { success: true };
+    } catch (error) {
+      return { error: error.message };
+    } finally {
+      await session.endSession();
+    }
+  },
 };
 
 // Set up cron job to run every minute
