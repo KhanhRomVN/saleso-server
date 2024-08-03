@@ -1,5 +1,6 @@
 const { ProductModel } = require("../../models/index");
 const logger = require("../../config/logger");
+const { redisClient } = require("../../config/redisClient");
 
 const handleRequest = async (req, res, operation) => {
   try {
@@ -28,11 +29,23 @@ const checkUserOwnership = async (product_id, seller_id) => {
   return product;
 };
 
+const clearProductCache = async (productId) => {
+  const keys = await redisClient.keys(`product:*${productId}*`);
+  if (keys.length > 0) await redisClient.del(keys);
+};
+
 const ProductController = {
   createProduct: (req, res) =>
     handleRequest(req, res, async (req) => {
-      const productData = { ...req.body, seller_id: req.user._id.toString() };
+      const productData = {
+        ...req.body,
+        seller_id: req.user._id.toString(),
+        upcoming_discounts: [],
+        ongoing_discounts: [],
+        expired_discounts: [],
+      };
       const newProduct = await ProductModel.createProduct(productData);
+      await clearProductCache(newProduct._id);
       return { message: "Product added successfully", product: newProduct };
     }),
 
@@ -51,19 +64,20 @@ const ProductController = {
       ProductModel.getListProductByCategory(req.params.category)
     ),
 
-  getProductsFlashsale: (req, res) =>
-    handleRequest(req, res, async () => ProductModel.getProductsOnFlashSale()),
-
   getAllProducts: (req, res) =>
-    handleRequest(req, res, async () => ProductModel.getAllProduct()),
+    handleRequest(req, res, async (req) => ProductModel.getAllProducts()),
 
   updateProduct: (req, res) =>
     handleRequest(req, res, async (req) => {
-      await checkUserOwnership(req.params.product_id, req.user._id.toString());
+      const product = await checkUserOwnership(
+        req.params.product_id,
+        req.user._id.toString()
+      );
       const updatedProduct = await ProductModel.updateProduct(
         req.params.product_id,
         req.body
       );
+      await clearProductCache(req.params.product_id);
       return {
         message: "Product updated successfully",
         product: updatedProduct,
@@ -74,6 +88,7 @@ const ProductController = {
     handleRequest(req, res, async (req) => {
       await checkUserOwnership(req.params.product_id, req.user._id.toString());
       await ProductModel.deleteProduct(req.params.product_id);
+      await clearProductCache(req.params.product_id);
       return { message: "Product deleted successfully" };
     }),
 };

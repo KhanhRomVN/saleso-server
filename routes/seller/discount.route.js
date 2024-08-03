@@ -35,11 +35,11 @@ const routes = [
     path: "/expired",
     handler: DiscountController.getExpiredDiscounts,
   },
-  {
-    method: "get",
-    path: "/top-used",
-    handler: DiscountController.getTopUsedDiscounts,
-  },
+  // {
+  //   method: "get",
+  //   path: "/top-used",
+  //   handler: DiscountController.getTopUsedDiscounts,
+  // },
   { method: "get", path: "/:id", handler: DiscountController.getDiscountById },
   {
     method: "patch",
@@ -48,8 +48,8 @@ const routes = [
   },
   {
     method: "patch",
-    path: "/:id/description",
-    handler: DiscountController.updateDiscountDescription,
+    path: "/:id/toggle-active",
+    handler: DiscountController.toggleActiveDiscount,
   },
   {
     method: "post",
@@ -57,9 +57,9 @@ const routes = [
     handler: DiscountController.applyDiscountProduct,
   },
   {
-    method: "patch",
-    path: "/:id/active",
-    handler: DiscountController.changeActiveDiscount,
+    method: "post",
+    path: "/cancel",
+    handler: DiscountController.cancelDiscountProduct,
   },
   {
     method: "delete",
@@ -68,18 +68,8 @@ const routes = [
   },
   {
     method: "post",
-    path: "/bulk-create",
-    handler: DiscountController.bulkCreateDiscounts,
-  },
-  {
-    method: "post",
     path: "/:id/clone",
     handler: DiscountController.cloneDiscount,
-  },
-  {
-    method: "get",
-    path: "/:id/usage-stats",
-    handler: DiscountController.getDiscountUsageStats,
   },
 ];
 

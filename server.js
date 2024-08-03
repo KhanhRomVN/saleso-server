@@ -8,6 +8,9 @@ const cors = require("cors");
 const http = require("http");
 const socketIo = require("socket.io");
 
+//* Redis
+const { connectRedis } = require("./config/redisClient");
+
 //* MongoDB
 const { connectDB } = require("./config/mongoDB");
 
@@ -16,7 +19,6 @@ const socketHandler = require("./socket/index");
 
 //* Routes
 const routes = require("./routes");
-const { router: discountCleanupRouter } = require("./services/discountCleanup");
 
 //* Error Handling Middleware
 const { errorHandler } = require("./middleware/errorHandler");
@@ -33,8 +35,6 @@ const corsOptions = {
   },
   credentials: true,
 };
-
-require("./config/scheduledTasks");
 
 const app = express();
 const server = http.createServer(app);
@@ -60,8 +60,6 @@ Object.entries(routes).forEach(([path, router]) => {
   app.use(`/${path}`, router);
 });
 
-app.use("/api", discountCleanupRouter);
-
 //* Socket Handler
 socketHandler(io);
 
@@ -70,13 +68,14 @@ app.use(errorHandler);
 
 //* Start Server
 const PORT = process.env.PORT || 8080;
-connectDB()
+
+Promise.all([connectDB(), connectRedis()])
   .then(() => {
     server.listen(PORT, () => {
       console.log(`Server is running on port: ${PORT}`);
     });
   })
   .catch((err) => {
-    console.error("Failed to connect to database", err);
+    console.error("Failed to connect to database or Redis", err);
     process.exit(1);
   });

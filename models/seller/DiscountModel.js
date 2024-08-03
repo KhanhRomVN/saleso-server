@@ -4,12 +4,13 @@ const { ObjectId } = require("mongodb");
 const cron = require("node-cron");
 
 const COLLECTION_NAME = "discounts";
-
 const COLLECTION_SCHEMA = Joi.object({
   seller_id: Joi.string().required(),
   name: Joi.string().required(),
   code: Joi.string().required(),
-  type: Joi.string().valid("percentage", "fixed", "buy_x_get_y").required(),
+  type: Joi.string()
+    .valid("percentage", "fixed", "buy_x_get_y", "flash-sale")
+    .required(),
   value: Joi.alternatives().conditional("type", {
     is: "buy_x_get_y",
     then: Joi.object({
@@ -24,7 +25,6 @@ const COLLECTION_SCHEMA = Joi.object({
   maxUses: Joi.number().required(),
   currentUses: Joi.number().default(0),
   isActive: Joi.boolean().default(true),
-  description: Joi.string(),
   applicableProducts: Joi.array().items(Joi.string()),
   customerUsageLimit: Joi.number().default(1).min(1).required(),
   status: Joi.string().valid("upcoming", "ongoing", "expired").required(),
@@ -33,11 +33,41 @@ const COLLECTION_SCHEMA = Joi.object({
 const validateDiscount = (discountData) => {
   const { error } = COLLECTION_SCHEMA.validate(discountData);
   if (error) throw error;
+
+  if (discountData.type === "flash-sale") {
+    validateFlashSaleDiscount(discountData.startDate, discountData.endDate);
+  }
+};
+
+const validateFlashSaleDiscount = (startDate, endDate) => {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  if (
+    start.getMinutes() !== 0 ||
+    start.getSeconds() !== 0 ||
+    end.getMinutes() !== 0 ||
+    end.getSeconds() !== 0
+  ) {
+    throw new Error("Flash-sale start and end times must be on the hour");
+  }
+
+  const durationHours = (end - start) / (1000 * 60 * 60);
+  if (durationHours < 1 || durationHours > 10) {
+    throw new Error("Flash-sale duration must be between 1 and 10 hours");
+  }
 };
 
 const DiscountModel = {
   async createDiscount(discountData) {
     validateDiscount(discountData);
+    if (discountData.type === "flash-sale") {
+      const now = new Date();
+      const startDate = new Date(discountData.startDate);
+      if (startDate <= now) {
+        throw new Error("Flash-sale start time must be in the future");
+      }
+    }
     const db = await getDB();
     const result = await db.collection(COLLECTION_NAME).insertOne(discountData);
     return result.insertedId;
@@ -128,16 +158,6 @@ const DiscountModel = {
       .toArray();
   },
 
-  async getTopUsedDiscounts(sellerId, limit = 10) {
-    const db = await getDB();
-    return db
-      .collection(COLLECTION_NAME)
-      .find({ seller_id: sellerId })
-      .sort({ currentUses: -1 })
-      .limit(limit)
-      .toArray();
-  },
-
   async updateDiscountName(id, newName) {
     return this.updateDiscount(id, { name: newName });
   },
@@ -146,17 +166,18 @@ const DiscountModel = {
     return this.updateDiscount(id, { description: newDescription });
   },
 
-  async changeActiveDiscount(id, isActive) {
-    return this.updateDiscount(id, { isActive });
-  },
-
-  async bulkCreateDiscounts(discountsData) {
-    discountsData.forEach(validateDiscount);
+  async toggleActiveDiscount(id) {
     const db = await getDB();
+    const discount = await this.getDiscountById(id);
+    if (!discount) return null;
+
     const result = await db
       .collection(COLLECTION_NAME)
-      .insertMany(discountsData);
-    return result.insertedIds;
+      .updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { isActive: !discount.isActive } }
+      );
+    return result.modifiedCount > 0;
   },
 
   async cloneDiscount(id) {
@@ -175,24 +196,10 @@ const DiscountModel = {
     return result.insertedId;
   },
 
-  async getDiscountUsageStats(id) {
-    const db = await getDB();
-    const discount = await this.getDiscountById(id);
-    if (!discount) return null;
-
-    return {
-      totalUses: discount.currentUses,
-      remainingUses: discount.maxUses - discount.currentUses,
-      usagePercentage: (discount.currentUses / discount.maxUses) * 100,
-    };
-  },
-
   async updateDiscountStatuses() {
     const db = await getDB();
     const currentDate = new Date();
-    console.log(currentDate);
 
-    // Update upcoming to ongoing
     await db.collection(COLLECTION_NAME).updateMany(
       {
         status: "upcoming",
@@ -212,7 +219,7 @@ const DiscountModel = {
     );
   },
 
-  async applyDiscountToProduct(discountId, productId) {
+  async applyDiscountToProduct(status, discountId, productId) {
     const db = await getDB();
     const session = db.client.startSession();
 
@@ -225,20 +232,72 @@ const DiscountModel = {
             { $addToSet: { applicableProducts: productId } },
             { session }
           );
-
         if (discountResult.modifiedCount === 0) {
           throw new Error("Failed to update discount");
         }
 
-        // Add discountId to applied_discounts in the product
+        let updateField;
+        if (status === "upcoming") {
+          updateField = "upcoming_discounts";
+        } else if (status === "ongoing") {
+          updateField = "ongoing_discounts";
+        } else {
+          throw new Error("Invalid discount status");
+        }
+
         const productResult = await db
           .collection("products")
           .updateOne(
             { _id: new ObjectId(productId) },
-            { $addToSet: { applied_discounts: discountId } },
+            { $addToSet: { [updateField]: discountId } },
             { session }
           );
+        if (productResult.modifiedCount === 0) {
+          throw new Error("Failed to update product");
+        }
+      });
 
+      return { success: true };
+    } catch (error) {
+      return { error: error.message };
+    } finally {
+      await session.endSession();
+    }
+  },
+
+  async cancelDiscountForProduct(status, discountId, productId) {
+    const db = await getDB();
+    const session = db.client.startSession();
+
+    try {
+      await session.withTransaction(async () => {
+        const discountResult = await db
+          .collection(COLLECTION_NAME)
+          .updateOne(
+            { _id: new ObjectId(discountId) },
+            { $pull: { applicableProducts: productId } },
+            { session }
+          );
+        if (discountResult.modifiedCount === 0) {
+          throw new Error("Failed to update discount");
+        }
+
+        let updateField;
+        if (status === "upcoming") {
+          updateField = "upcoming_discounts";
+        } else if (status === "ongoing") {
+          updateField = "ongoing_discounts";
+        } else {
+          throw new Error("Invalid discount status");
+        }
+
+        const productResult = await db
+          .collection("products")
+          .updateOne(
+            { _id: new ObjectId(productId) },
+            { $pull: { [updateField]: discountId } },
+            { session }
+          );
         if (productResult.modifiedCount === 0) {
           throw new Error("Failed to update product");
         }
@@ -253,15 +312,12 @@ const DiscountModel = {
   },
 };
 
-// Set up cron job to run every minute
-cron.schedule("* * * * *", async () => {
-  console.log("Running discount status update");
-  try {
-    await DiscountModel.updateDiscountStatuses();
-    console.log("Discount statuses updated successfully");
-  } catch (error) {
-    console.error("Error updating discount statuses:", error);
-  }
-});
+// cron.schedule("* * * * *", async () => {
+//   try {
+//     await DiscountModel.updateDiscountStatuses();
+//   } catch (error) {
+//     console.error("Error updating discount statuses:", error);
+//   }
+// });
 
 module.exports = DiscountModel;

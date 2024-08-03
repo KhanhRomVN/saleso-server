@@ -1,6 +1,9 @@
 const Joi = require("joi");
 const { getDB } = require("../../config/mongoDB");
 const { ObjectId } = require("mongodb");
+const DiscountModel = require("./DiscountModel");
+const { redisClient } = require("../../config/redisClient");
+const cron = require("node-cron");
 
 const COLLECTION_NAME = "products";
 const COLLECTION_SCHEMA = Joi.object({
@@ -14,7 +17,9 @@ const COLLECTION_SCHEMA = Joi.object({
   isHandmade: Joi.boolean().valid(true, false).required(),
   stock: Joi.number().min(0),
   categories: Joi.array().items(Joi.string()).required(),
-  applied_discounts: Joi.array().items(Joi.string()),
+  upcoming_discounts: Joi.array().items(Joi.string()),
+  ongoing_discounts: Joi.array().items(Joi.string()),
+  expired_discounts: Joi.array().items(Joi.string()),
   attributes: Joi.object().pattern(
     Joi.string(),
     Joi.array()
@@ -70,18 +75,27 @@ const ProductModel = {
 
   getProductByProdId: async (product_id) =>
     handleDBOperation(async (collection) => {
-      if (!ObjectId.isValid(product_id)) {
-        throw new Error("Invalid product ID");
-      }
-      return collection.findOne({ _id: new ObjectId(product_id) });
+      if (!ObjectId.isValid(product_id)) throw new Error("Invalid product ID");
+
+      const cacheKey = `product:${product_id}`;
+      const cachedProduct = await redisClient.get(cacheKey);
+      if (cachedProduct) return JSON.parse(cachedProduct);
+
+      const product = await collection.findOne({
+        _id: new ObjectId(product_id),
+      });
+      if (product)
+        await redisClient.setEx(cacheKey, 3600, JSON.stringify(product));
+      return product;
     }),
 
   getListProductBySellerId: async (seller_id) =>
     handleDBOperation(async (collection) => {
-      if (!ObjectId.isValid(seller_id)) {
-        throw new Error("Invalid seller ID");
-      }
-      return collection.find({ seller_id: seller_id }).toArray();
+      if (!ObjectId.isValid(seller_id)) throw new Error("Invalid seller ID");
+      const products = await collection
+        .find({ seller_id: seller_id })
+        .toArray();
+      return products;
     }),
 
   getNumberProductByCategory: async (category) =>
@@ -90,36 +104,54 @@ const ProductModel = {
         throw new Error("Invalid category");
       }
 
+      const cacheKey = `category:${category}:count`;
+      const cachedCount = await redisClient.get(cacheKey);
+      if (cachedCount) {
+        return { category, count: parseInt(cachedCount) };
+      }
+
       const count = await collection.countDocuments({
         category: { $in: [category] },
         is_active: "Y",
       });
 
+      await redisClient.setEx(cacheKey, 3600, count.toString()); // Cache for 1 hour
       return { category, count };
     }),
 
   getListProductByCategory: async (category) =>
-    handleDBOperation(async (collection) =>
-      collection.find({ category: { $in: [category] } }).toArray()
-    ),
-
-  getProductsOnFlashSale: async () =>
     handleDBOperation(async (collection) => {
-      const now = new Date();
-      const nowISO = now.toISOString();
-
-      return collection
-        .find({
-          discount_type: "Flash Sale",
-          "discount_time.start": { $lte: nowISO },
-          "discount_time.end": { $gt: nowISO },
-          is_active: "Y",
-        })
+      const cacheKey = `category:${category}:products`;
+      const cachedProducts = await redisClient.get(cacheKey);
+      if (cachedProducts) {
+        return JSON.parse(cachedProducts);
+      }
+      const products = await collection
+        .find({ categories: { $in: [category] } })
         .toArray();
+      await redisClient.setEx(cacheKey, 3600, JSON.stringify(products)); // Cache for 1 hour
+      return products;
     }),
 
-  getAllProduct: async () =>
-    handleDBOperation(async (collection) => collection.find({}).toArray()),
+  getAllProducts: async () =>
+    handleDBOperation(async (collection) => {
+      const cacheKey = "allProducts";
+      const cachedProducts = await redisClient.get(cacheKey);
+      if (cachedProducts) {
+        return JSON.parse(cachedProducts);
+      }
+      const products = await collection.find().toArray();
+      await redisClient.setEx(cacheKey, 3600, JSON.stringify(products)); // Cache for 1 hour
+      return products;
+    }),
+
+  applyDiscount: async (productId, discountId) =>
+    handleDBOperation(async (collection) => {
+      await collection.updateOne(
+        { _id: new ObjectId(productId) },
+        { $addToSet: { applied_discounts: discountId } }
+      );
+    }),
 
   updateProduct: async (product_id, updateData) =>
     handleDBOperation(async (collection) => {
@@ -136,6 +168,9 @@ const ProductModel = {
         throw new Error("Product not found or update failed");
       }
 
+      // Clear cache for this product
+      await redisClient.del(`product:${product_id}`);
+
       return result.value;
     }),
 
@@ -148,37 +183,70 @@ const ProductModel = {
         _id: new ObjectId(product_id),
       });
       if (result.deletedCount === 0) throw new Error("Product not found");
+
+      // Clear cache for this product
+      await redisClient.del(`product:${product_id}`);
+
       return result;
     }),
 
-  subtractStock: async (product_id, quantity) =>
-    handleDBOperation(async (collection) => {
-      if (!ObjectId.isValid(product_id)) {
-        throw new Error("Invalid product ID");
-      }
-      const product = await collection.findOne({
-        _id: new ObjectId(product_id),
-      });
-      if (!product) {
-        throw new Error("Product not found");
-      }
+  updateDiscountStatuses: async () => {
+    return handleDBOperation(async (collection) => {
+      const activeProducts = await collection
+        .find({ is_active: "Y" })
+        .toArray();
 
-      const newStock = product.stock - quantity;
-      if (newStock < 0) {
-        throw new Error("Insufficient stock");
+      for (const product of activeProducts) {
+        let upcomingUpdated = false;
+        let ongoingUpdated = false;
+
+        // Check upcoming_discounts
+        for (const discountId of product.upcoming_discounts || []) {
+          const discount = await DiscountModel.getDiscountById(discountId);
+          if (discount && discount.status === "ongoing") {
+            await collection.updateOne(
+              { _id: product._id },
+              {
+                $pull: { upcoming_discounts: discountId },
+                $addToSet: { ongoing_discounts: discountId },
+              }
+            );
+            upcomingUpdated = true;
+          }
+        }
+
+        // Check ongoing_discounts
+        for (const discountId of product.ongoing_discounts || []) {
+          const discount = await DiscountModel.getDiscountById(discountId);
+          if (discount && discount.status === "expired") {
+            await collection.updateOne(
+              { _id: product._id },
+              {
+                $pull: { ongoing_discounts: discountId },
+                $addToSet: { expired_discounts: discountId },
+              }
+            );
+            ongoingUpdated = true;
+          }
+        }
+
+        // Clear cache if updates were made
+        if (upcomingUpdated || ongoingUpdated) {
+          await redisClient.del(`product:${product._id}`);
+        }
       }
-
-      const result = await collection.updateOne(
-        { _id: new ObjectId(product_id) },
-        { $set: { stock: newStock, updatedAt: new Date() } }
-      );
-
-      if (result.modifiedCount === 0) {
-        throw new Error("Failed to update stock");
-      }
-
-      return { ...product, stock: newStock };
-    }),
+    });
+  },
 };
+
+cron.schedule("* * * * *", async () => {
+  try {
+    await DiscountModel.updateDiscountStatuses();
+    await ProductModel.updateDiscountStatuses();
+    console.log("Discount statuses updated successfully");
+  } catch (error) {
+    console.error("Error updating discount statuses:", error);
+  }
+});
 
 module.exports = ProductModel;

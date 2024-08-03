@@ -1,4 +1,4 @@
-const { DiscountModel } = require("../../models/index");
+const { DiscountModel, ProductModel } = require("../../models/index");
 const logger = require("../../config/logger");
 
 const handleRequest = async (req, res, operation) => {
@@ -18,7 +18,6 @@ const DiscountController = {
     handleRequest(req, res, async (req) => {
       const discountData = { ...req.body, seller_id: req.user._id.toString() };
 
-      // Convert startDate and endDate strings to Date objects
       discountData.startDate = new Date(discountData.startDate);
       discountData.endDate = new Date(discountData.endDate);
 
@@ -37,33 +36,27 @@ const DiscountController = {
 
   getActiveDiscounts: (req, res) =>
     handleRequest(req, res, async (req) => {
-      return await DiscountModel.getActiveDiscounts(req.user._id);
+      return await DiscountModel.getActiveDiscounts(req.user._id.toString());
     }),
 
   getInactiveDiscounts: (req, res) =>
     handleRequest(req, res, async (req) => {
-      return await DiscountModel.getInactiveDiscounts(req.user._id);
+      return await DiscountModel.getInactiveDiscounts(req.user._id.toString());
     }),
 
   getUpcomingDiscounts: (req, res) =>
     handleRequest(req, res, async (req) => {
-      return await DiscountModel.getUpcomingDiscounts(req.user._id);
+      return await DiscountModel.getUpcomingDiscounts(req.user._id.toString());
     }),
 
   getOngoingDiscounts: (req, res) =>
     handleRequest(req, res, async (req) => {
-      return await DiscountModel.getOngoingDiscounts(req.user._id);
+      return await DiscountModel.getOngoingDiscounts(req.user._id.toString());
     }),
 
   getExpiredDiscounts: (req, res) =>
     handleRequest(req, res, async (req) => {
-      return await DiscountModel.getExpiredDiscounts(req.user._id);
-    }),
-
-  getTopUsedDiscounts: (req, res) =>
-    handleRequest(req, res, async (req) => {
-      const limit = parseInt(req.query.limit) || 10;
-      return await DiscountModel.getTopUsedDiscounts(req.user._id, limit);
+      return await DiscountModel.getExpiredDiscounts(req.user._id.toString());
     }),
 
   getDiscountById: (req, res) =>
@@ -100,24 +93,6 @@ const DiscountController = {
       return await DiscountModel.updateDiscountName(id, name);
     }),
 
-  updateDiscountDescription: (req, res) =>
-    handleRequest(req, res, async (req) => {
-      const { id } = req.params;
-      const { description } = req.body;
-      const discount = await DiscountModel.getDiscountById(id);
-      if (!discount) {
-        res.status(404).json({ error: "Discount not found" });
-        return;
-      }
-      if (discount.seller_id !== req.user._id) {
-        res
-          .status(403)
-          .json({ error: "You are not authorized to update this discount" });
-        return;
-      }
-      return await DiscountModel.updateDiscountDescription(id, description);
-    }),
-
   applyDiscountProduct: (req, res) =>
     handleRequest(req, res, async (req) => {
       const { discountId, productId } = req.body;
@@ -132,7 +107,14 @@ const DiscountController = {
           .json({ error: "You are not authorized to apply this discount" });
         return;
       }
+      if (discount.isActive === false || discount.status === "expired") {
+        res.status(403).json({
+          error:
+            "Can not apply discount for this product because expired or do not active",
+        });
+      }
       const result = await DiscountModel.applyDiscountToProduct(
+        discount.status,
         discountId,
         productId
       );
@@ -143,22 +125,53 @@ const DiscountController = {
       return { message: "Discount applied successfully" };
     }),
 
-  changeActiveDiscount: (req, res) =>
+  cancelDiscountProduct: (req, res) =>
+    handleRequest(req, res, async (req) => {
+      const { discountId, productId } = req.body;
+      const discount = await DiscountModel.getDiscountById(discountId);
+      if (!discount) {
+        res.status(404).json({ error: "Discount not found" });
+        return;
+      }
+      if (discount.seller_id !== req.user._id.toString()) {
+        res
+          .status(403)
+          .json({ error: "You are not authorized to cancel this discount" });
+        return;
+      }
+      if (discount.status == "expired") {
+        res
+          .status(400)
+          .json({ error: "Only upcoming/ongoing discounts can be canceled" });
+        return;
+      }
+      const result = await DiscountModel.cancelDiscountForProduct(
+        discount.status,
+        discountId,
+        productId
+      );
+      if (result.error) {
+        res.status(400).json({ error: result.error });
+        return;
+      }
+      return { message: "Discount canceled successfully" };
+    }),
+
+  toggleActiveDiscount: (req, res) =>
     handleRequest(req, res, async (req) => {
       const { id } = req.params;
-      const { isActive } = req.body;
       const discount = await DiscountModel.getDiscountById(id);
       if (!discount) {
         res.status(404).json({ error: "Discount not found" });
         return;
       }
-      if (discount.seller_id !== req.user._id) {
+      if (discount.seller_id !== req.user._id.toString()) {
         res
           .status(403)
           .json({ error: "You are not authorized to update this discount" });
         return;
       }
-      return await DiscountModel.changeActiveDiscount(id, isActive);
+      return await DiscountModel.toggleActiveDiscount(id);
     }),
 
   deleteDiscount: (req, res) =>
@@ -178,15 +191,6 @@ const DiscountController = {
       return await DiscountModel.deleteDiscount(id);
     }),
 
-  bulkCreateDiscounts: (req, res) =>
-    handleRequest(req, res, async (req) => {
-      const discountsData = req.body.map((discount) => ({
-        ...discount,
-        seller_id: req.user._id,
-      }));
-      return await DiscountModel.bulkCreateDiscounts(discountsData);
-    }),
-
   cloneDiscount: (req, res) =>
     handleRequest(req, res, async (req) => {
       const { id } = req.params;
@@ -203,35 +207,13 @@ const DiscountController = {
       }
       return await DiscountModel.cloneDiscount(id);
     }),
-
-  getDiscountUsageStats: (req, res) =>
-    handleRequest(req, res, async (req) => {
-      const { id } = req.params;
-      const discount = await DiscountModel.getDiscountById(id);
-      if (!discount) {
-        res.status(404).json({ error: "Discount not found" });
-        return;
-      }
-      if (discount.seller_id !== req.user._id) {
-        res.status(403).json({
-          error: "You are not authorized to view this discount's stats",
-        });
-        return;
-      }
-      return await DiscountModel.getDiscountUsageStats(id);
-    }),
 };
 
-function determineDiscountStatus(startDate, endDate) {
+const determineDiscountStatus = (startDate, endDate) => {
   const now = new Date();
-
-  if (now < startDate) {
-    return "upcoming";
-  } else if (now >= startDate && now <= endDate) {
-    return "ongoing";
-  } else {
-    return "expired";
-  }
-}
+  if (now < startDate) return "upcoming";
+  if (now >= startDate && now <= endDate) return "ongoing";
+  return "expired";
+};
 
 module.exports = DiscountController;
