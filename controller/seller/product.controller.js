@@ -1,6 +1,23 @@
-const { ProductModel } = require("../../models/index");
+const { ProductModel, DiscountModel } = require("../../models/index");
 const logger = require("../../config/logger");
 const { redisClient } = require("../../config/redisClient");
+
+const createDescriptionDiscount = (discount) => {
+  if (!discount) return null;
+
+  switch (discount.type) {
+    case "percentage":
+      return `Discount ${discount.value}%`;
+    case "fixed":
+      return `Discount $${discount.value}`;
+    case "buy_x_get_y":
+      return `Buy ${discount.value.buyQuantity} Get ${discount.value.getFreeQuantity} Free`;
+    case "flash-sale":
+      return `Flash Sale ${discount.value}%`;
+    default:
+      return "Invalid discount type";
+  }
+};
 
 const handleRequest = async (req, res, operation) => {
   try {
@@ -58,6 +75,44 @@ const ProductController = {
     handleRequest(req, res, async (req) =>
       ProductModel.getListProductBySellerId(req.params.seller_id)
     ),
+
+  getProductsWithDiscountBySellerId: (req, res) =>
+    handleRequest(req, res, async (req) => {
+      const products = await ProductModel.getListProductBySellerId(
+        req.params.seller_id
+      );
+
+      const productsWithDiscounts = await Promise.all(
+        products.map(async (product) => {
+          const discountArrays = [
+            "upcoming_discounts",
+            "ongoing_discounts",
+            "expired_discounts",
+          ];
+          const discountsWithDescription = {};
+
+          for (const arrayName of discountArrays) {
+            discountsWithDescription[arrayName] = await Promise.all(
+              product[arrayName].map(async (discountId) => {
+                const discount =
+                  await DiscountModel.getDiscountById(discountId);
+                if (discount) {
+                  discount.description = createDescriptionDiscount(discount);
+                }
+                return discount;
+              })
+            );
+          }
+
+          return {
+            ...product,
+            ...discountsWithDescription,
+          };
+        })
+      );
+
+      return productsWithDiscounts;
+    }),
 
   getProductsByCategory: (req, res) =>
     handleRequest(req, res, async (req) =>

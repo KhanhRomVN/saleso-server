@@ -25,7 +25,6 @@ const DiscountController = {
         discountData.startDate,
         discountData.endDate
       );
-
       return await DiscountModel.createDiscount(discountData);
     }),
 

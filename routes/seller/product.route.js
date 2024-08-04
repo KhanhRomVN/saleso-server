@@ -43,6 +43,11 @@ const routes = [
   },
   {
     method: "get",
+    path: "/discount/by-seller/:seller_id",
+    handler: ProductController.getProductsWithDiscountBySellerId,
+  },
+  {
+    method: "get",
     path: "/by-category/:category",
     middleware: [cacheMiddleware(600)],
     handler: ProductController.getProductsByCategory,
@@ -50,7 +55,7 @@ const routes = [
   {
     method: "post",
     path: "/all-product",
-    middleware: [cacheMiddleware(1800)], // Cache for 30 minutes
+    middleware: [cacheMiddleware(1800)],
     handler: ProductController.getAllProducts,
   },
   {

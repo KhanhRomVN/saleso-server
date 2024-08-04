@@ -183,58 +183,92 @@ const ProductModel = {
         _id: new ObjectId(product_id),
       });
       if (result.deletedCount === 0) throw new Error("Product not found");
-
-      // Clear cache for this product
       await redisClient.del(`product:${product_id}`);
-
       return result;
     }),
 
   updateDiscountStatuses: async () => {
     return handleDBOperation(async (collection) => {
-      const activeProducts = await collection
-        .find({ is_active: "Y" })
+      const currentDate = new Date();
+
+      const products = await collection
+        .find({
+          $or: [
+            { upcoming_discounts: { $exists: true, $ne: [] } },
+            { ongoing_discounts: { $exists: true, $ne: [] } },
+            { expired_discounts: { $exists: true, $ne: [] } },
+          ],
+        })
         .toArray();
 
-      for (const product of activeProducts) {
-        let upcomingUpdated = false;
-        let ongoingUpdated = false;
+      for (const product of products) {
+        let updated = false;
+        const updateOps = {};
 
-        // Check upcoming_discounts
-        for (const discountId of product.upcoming_discounts || []) {
-          const discount = await DiscountModel.getDiscountById(discountId);
-          if (discount && discount.status === "ongoing") {
-            await collection.updateOne(
-              { _id: product._id },
-              {
-                $pull: { upcoming_discounts: discountId },
-                $addToSet: { ongoing_discounts: discountId },
-              }
-            );
-            upcomingUpdated = true;
+        // Check upcoming discounts
+        if (
+          product.upcoming_discounts &&
+          product.upcoming_discounts.length > 0
+        ) {
+          const discounts = await DiscountModel.getDiscountsByIds(
+            product.upcoming_discounts
+          );
+          const ongoing = discounts.filter(
+            (d) => d.startDate <= currentDate && d.endDate > currentDate
+          );
+          const expired = discounts.filter((d) => d.endDate <= currentDate);
+
+          if (ongoing.length > 0) {
+            updateOps.$push = {
+              ongoing_discounts: {
+                $each: ongoing.map((d) => d._id.toString()),
+              },
+            };
+            updateOps.$pull = {
+              upcoming_discounts: { $in: ongoing.map((d) => d._id.toString()) },
+            };
+            updated = true;
+          }
+
+          if (expired.length > 0) {
+            updateOps.$push = updateOps.$push || {};
+            updateOps.$pull = updateOps.$pull || {};
+            updateOps.$push.expired_discounts = {
+              $each: expired.map((d) => d._id.toString()),
+            };
+            updateOps.$pull.upcoming_discounts = {
+              $in: expired.map((d) => d._id.toString()),
+            };
+            updated = true;
           }
         }
 
-        // Check ongoing_discounts
-        for (const discountId of product.ongoing_discounts || []) {
-          const discount = await DiscountModel.getDiscountById(discountId);
-          if (discount && discount.status === "expired") {
-            await collection.updateOne(
-              { _id: product._id },
-              {
-                $pull: { ongoing_discounts: discountId },
-                $addToSet: { expired_discounts: discountId },
-              }
-            );
-            ongoingUpdated = true;
+        if (product.ongoing_discounts && product.ongoing_discounts.length > 0) {
+          const discounts = await DiscountModel.getDiscountsByIds(
+            product.ongoing_discounts
+          );
+          const expired = discounts.filter((d) => d.endDate <= currentDate);
+
+          if (expired.length > 0) {
+            updateOps.$push = updateOps.$push || {};
+            updateOps.$pull = updateOps.$pull || {};
+            updateOps.$push.expired_discounts = {
+              $each: expired.map((d) => d._id.toString()),
+            };
+            updateOps.$pull.ongoing_discounts = {
+              $in: expired.map((d) => d._id.toString()),
+            };
+            updated = true;
           }
         }
 
-        // Clear cache if updates were made
-        if (upcomingUpdated || ongoingUpdated) {
+        if (updated) {
+          await collection.updateOne({ _id: product._id }, updateOps);
           await redisClient.del(`product:${product._id}`);
         }
       }
+
+      await redisClient.del("allProducts");
     });
   },
 };
@@ -243,7 +277,6 @@ cron.schedule("* * * * *", async () => {
   try {
     await DiscountModel.updateDiscountStatuses();
     await ProductModel.updateDiscountStatuses();
-    console.log("Discount statuses updated successfully");
   } catch (error) {
     console.error("Error updating discount statuses:", error);
   }

@@ -86,6 +86,34 @@ const DiscountModel = {
     return db.collection(COLLECTION_NAME).findOne({ _id: new ObjectId(id) });
   },
 
+  async getDiscountsByIds(ids) {
+    const db = await getDB();
+    try {
+      // Convert string IDs to ObjectId
+      const objectIds = ids.map((id) => new ObjectId(id));
+
+      // Fetch discounts from the database
+      const discounts = await db
+        .collection(COLLECTION_NAME)
+        .find({
+          _id: { $in: objectIds },
+        })
+        .toArray();
+
+      // If not all discounts were found, log a warning
+      if (discounts.length !== ids.length) {
+        console.warn(
+          `Not all discounts were found. Requested: ${ids.length}, Found: ${discounts.length}`
+        );
+      }
+
+      return discounts;
+    } catch (error) {
+      console.error("Error in getDiscountsByIds:", error);
+      throw error;
+    }
+  },
+
   async updateDiscount(id, updateData) {
     const db = await getDB();
     const result = await db
@@ -311,13 +339,5 @@ const DiscountModel = {
     }
   },
 };
-
-// cron.schedule("* * * * *", async () => {
-//   try {
-//     await DiscountModel.updateDiscountStatuses();
-//   } catch (error) {
-//     console.error("Error updating discount statuses:", error);
-//   }
-// });
 
 module.exports = DiscountModel;
