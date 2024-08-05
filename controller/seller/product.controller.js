@@ -1,4 +1,8 @@
-const { ProductModel, DiscountModel } = require("../../models/index");
+const {
+  ProductModel,
+  DiscountModel,
+  ReviewModel,
+} = require("../../models/index");
 const logger = require("../../config/logger");
 const { redisClient } = require("../../config/redisClient");
 
@@ -17,6 +21,35 @@ const createDescriptionDiscount = (discount) => {
     default:
       return "Invalid discount type";
   }
+};
+
+const processFlashSaleProducts = async (products) => {
+  const processedProducts = await Promise.all(
+    products.map(async (product) => {
+      const rating = await ReviewModel.getAverageRatingForProduct(product._id);
+      return {
+        _id: product._id,
+        name: product.name,
+        price:
+          product.price ||
+          (product.attributes
+            ? Math.min(
+                ...Object.values(product.attributes).flatMap((attr) =>
+                  attr.map((item) => parseFloat(item.price))
+                )
+              )
+            : null),
+        images: product.images,
+        flashSaleDiscount: product.flashSaleDiscount
+          ? product.flashSaleDiscount.value
+          : null,
+        averageRating: rating ? rating.averageRating : null,
+        totalReviews: rating ? rating.totalReviews : null,
+      };
+    })
+  );
+
+  return processedProducts;
 };
 
 const handleRequest = async (req, res, operation) => {
@@ -119,8 +152,100 @@ const ProductController = {
       ProductModel.getListProductByCategory(req.params.category)
     ),
 
-  getAllProducts: (req, res) =>
-    handleRequest(req, res, async (req) => ProductModel.getAllProducts()),
+  getFlashSaleProducts: (req, res) =>
+    handleRequest(req, res, async (req) => {
+      const products = await ProductModel.getFlashSaleProduct();
+      return processFlashSaleProducts(products);
+    }),
+
+  getTopSellingProducts: (req, res) =>
+    handleRequest(req, res, async (req) => {
+      const limit = parseInt(req.query.limit) || 10;
+      const products = await ProductModel.getTopSellProduct(limit);
+
+      const processedProducts = await Promise.all(
+        products.map(async (product) => {
+          const { averageRating, totalReviews } =
+            await ReviewModel.getAverageRatingForProduct(product._id);
+
+          return {
+            _id: product._id,
+            name: product.name,
+            images: product.images,
+            price:
+              product.price ||
+              (product.attributes
+                ? Math.min(
+                    ...Object.values(product.attributes).flatMap((attr) =>
+                      attr.map((item) => parseFloat(item.price))
+                    )
+                  )
+                : null),
+            averageRating,
+            totalReviews,
+          };
+        })
+      );
+
+      return processedProducts;
+    }),
+
+  getProductsByCategories: (req, res) =>
+    handleRequest(req, res, async (req) => {
+      const { categories } = req.body;
+      if (!Array.isArray(categories) || categories.length === 0) {
+        throw new Error("Invalid categories input");
+      }
+
+      const productsByCategory = await Promise.all(
+        categories.map(async (category) => {
+          const products =
+            await ProductModel.getListProductByCategory(category);
+
+          const processedProducts = await Promise.all(
+            products.map(async (product) => {
+              const { averageRating, totalReviews } =
+                await ReviewModel.getAverageRatingForProduct(product._id);
+
+              return {
+                _id: product._id,
+                name: product.name,
+                price:
+                  product.price ||
+                  (product.attributes
+                    ? Math.min(
+                        ...Object.values(product.attributes).flatMap((attr) =>
+                          attr.map((item) => parseFloat(item.price))
+                        )
+                      )
+                    : null),
+                images: product.images,
+                averageRating,
+                totalReviews,
+              };
+            })
+          );
+
+          return processedProducts;
+        })
+      );
+
+      return productsByCategory;
+    }),
+
+  searchProducts: (req, res) =>
+    handleRequest(req, res, async (req) => {
+      const { query, limit, skip, sort, minPrice, maxPrice, categories } =
+        req.body;
+      return ProductModel.searchProducts(query, {
+        limit,
+        skip,
+        sort,
+        minPrice,
+        maxPrice,
+        categories,
+      });
+    }),
 
   updateProduct: (req, res) =>
     handleRequest(req, res, async (req) => {
@@ -145,6 +270,20 @@ const ProductController = {
       await ProductModel.deleteProduct(req.params.product_id);
       await clearProductCache(req.params.product_id);
       return { message: "Product deleted successfully" };
+    }),
+
+  updateProductStock: (req, res) =>
+    handleRequest(req, res, async (req) => {
+      await checkUserOwnership(req.params.product_id, req.user._id.toString());
+      const { quantity } = req.body;
+      const updatedProduct = await ProductModel.updateStock(
+        req.params.product_id,
+        quantity
+      );
+      return {
+        message: "Product stock updated successfully",
+        product: updatedProduct,
+      };
     }),
 };
 

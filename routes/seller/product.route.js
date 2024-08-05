@@ -32,14 +32,18 @@ const routes = [
   {
     method: "get",
     path: "/:product_id",
-    middleware: [cacheMiddleware(300)], // Cache for 5 minutes
+    middleware: [cacheMiddleware(300)],
     handler: ProductController.getProductById,
   },
   {
     method: "get",
     path: "/by-seller/:seller_id",
-    // middleware: [cacheMiddleware(600)],
     handler: ProductController.getProductsBySellerId,
+  },
+  {
+    method: "post",
+    path: "/flash-sale",
+    handler: ProductController.getFlashSaleProducts,
   },
   {
     method: "get",
@@ -47,16 +51,25 @@ const routes = [
     handler: ProductController.getProductsWithDiscountBySellerId,
   },
   {
+    method: "post",
+    path: "/top-sell",
+    handler: ProductController.getTopSellingProducts,
+  },
+  {
     method: "get",
     path: "/by-category/:category",
-    middleware: [cacheMiddleware(600)],
+    middleware: [cacheMiddleware(1800)],
     handler: ProductController.getProductsByCategory,
   },
   {
     method: "post",
-    path: "/all-product",
-    middleware: [cacheMiddleware(1800)],
-    handler: ProductController.getAllProducts,
+    path: "/by-categories",
+    handler: ProductController.getProductsByCategories,
+  },
+  {
+    method: "post",
+    path: "/search",
+    handler: ProductController.searchProducts,
   },
   {
     method: "put",
@@ -69,6 +82,12 @@ const routes = [
     path: "/delete/:product_id",
     middleware: [authSellerToken],
     handler: ProductController.deleteProduct,
+  },
+  {
+    method: "put",
+    path: "/update-stock/:product_id",
+    middleware: [authSellerToken],
+    handler: ProductController.updateProductStock,
   },
 ];
 

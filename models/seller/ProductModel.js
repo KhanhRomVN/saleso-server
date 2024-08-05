@@ -121,15 +121,14 @@ const ProductModel = {
 
   getListProductByCategory: async (category) =>
     handleDBOperation(async (collection) => {
-      const cacheKey = `category:${category}:products`;
-      const cachedProducts = await redisClient.get(cacheKey);
-      if (cachedProducts) {
-        return JSON.parse(cachedProducts);
+      if (!category || typeof category !== "string") {
+        throw new Error("Invalid category");
       }
+
       const products = await collection
-        .find({ categories: { $in: [category] } })
+        .find({ categories: { $in: [category] }, is_active: "Y" })
         .toArray();
-      await redisClient.setEx(cacheKey, 3600, JSON.stringify(products)); // Cache for 1 hour
+
       return products;
     }),
 
@@ -143,14 +142,6 @@ const ProductModel = {
       const products = await collection.find().toArray();
       await redisClient.setEx(cacheKey, 3600, JSON.stringify(products)); // Cache for 1 hour
       return products;
-    }),
-
-  applyDiscount: async (productId, discountId) =>
-    handleDBOperation(async (collection) => {
-      await collection.updateOne(
-        { _id: new ObjectId(productId) },
-        { $addToSet: { applied_discounts: discountId } }
-      );
     }),
 
   updateProduct: async (product_id, updateData) =>
@@ -167,9 +158,6 @@ const ProductModel = {
       if (!result.value) {
         throw new Error("Product not found or update failed");
       }
-
-      // Clear cache for this product
-      await redisClient.del(`product:${product_id}`);
 
       return result.value;
     }),
@@ -243,6 +231,7 @@ const ProductModel = {
           }
         }
 
+        // Check ongoing discounts
         if (product.ongoing_discounts && product.ongoing_discounts.length > 0) {
           const discounts = await DiscountModel.getDiscountsByIds(
             product.ongoing_discounts
@@ -271,6 +260,137 @@ const ProductModel = {
       await redisClient.del("allProducts");
     });
   },
+
+  getFlashSaleProduct: async () =>
+    handleDBOperation(async (collection) => {
+      const now = new Date();
+      const flashSaleProducts = await collection
+        .find({
+          ongoing_discounts: { $exists: true, $ne: [] },
+          is_active: "Y",
+        })
+        .toArray();
+
+      const productsWithDiscounts = await Promise.all(
+        flashSaleProducts.map(async (product) => {
+          const discounts = await DiscountModel.getDiscountsByIds(
+            product.ongoing_discounts
+          );
+          const flashSaleDiscount = discounts.find(
+            (d) =>
+              d.type === "flash-sale" && d.startDate <= now && d.endDate > now
+          );
+          if (flashSaleDiscount) {
+            return { ...product, flashSaleDiscount };
+          }
+          return null;
+        })
+      );
+
+      return productsWithDiscounts.filter(Boolean);
+    }),
+
+  getTopSellProduct: async (limit = 10) =>
+    handleDBOperation(async (collection) => {
+      const topProducts = await collection
+        .find({ is_active: "Y" })
+        .sort({ units_sold: -1 })
+        .limit(limit)
+        .toArray();
+
+      return topProducts;
+    }),
+
+  getProductsByCategories: async (categories) =>
+    handleDBOperation(async (collection) => {
+      if (!Array.isArray(categories) || categories.length === 0) {
+        throw new Error("Invalid categories input");
+      }
+      const products = await collection
+        .find({
+          categories: { $in: categories },
+          is_active: "Y",
+        })
+        .toArray();
+      return products;
+    }),
+
+  searchProducts: async (query, options = {}) =>
+    handleDBOperation(async (collection) => {
+      const {
+        limit = 20,
+        skip = 0,
+        sort = { createdAt: -1 },
+        minPrice,
+        maxPrice,
+        categories,
+      } = options;
+
+      const filter = {
+        $text: { $search: query },
+        is_active: "Y",
+      };
+
+      if (minPrice !== undefined || maxPrice !== undefined) {
+        filter.price = {};
+        if (minPrice !== undefined) filter.price.$gte = minPrice;
+        if (maxPrice !== undefined) filter.price.$lte = maxPrice;
+      }
+
+      if (categories && categories.length > 0) {
+        filter.categories = { $in: categories };
+      }
+
+      const cacheKey = `search:${query}:${JSON.stringify(options)}`;
+      const cachedResults = await redisClient.get(cacheKey);
+      if (cachedResults) {
+        return JSON.parse(cachedResults);
+      }
+
+      const products = await collection
+        .find(filter)
+        .sort(sort)
+        .skip(skip)
+        .limit(limit)
+        .toArray();
+
+      const total = await collection.countDocuments(filter);
+
+      const results = {
+        products,
+        total,
+        page: Math.floor(skip / limit) + 1,
+        limit,
+      };
+      await redisClient.setEx(cacheKey, 300, JSON.stringify(results)); // Cache for 5 minutes
+      return results;
+    }),
+
+  updateStock: async (productId, quantity) =>
+    handleDBOperation(async (collection) => {
+      if (!ObjectId.isValid(productId)) {
+        throw new Error("Invalid product ID");
+      }
+
+      const result = await collection.findOneAndUpdate(
+        { _id: new ObjectId(productId) },
+        {
+          $inc: { stock: -quantity, units_sold: quantity },
+          $set: { updatedAt: new Date() },
+        },
+        { returnDocument: "after" }
+      );
+
+      if (!result.value) {
+        throw new Error("Product not found or update failed");
+      }
+
+      // Clear cache for this product
+      await redisClient.del(`product:${productId}`);
+      await redisClient.del("allProducts");
+
+      return result.value;
+    }),
 };
 
 cron.schedule("* * * * *", async () => {
