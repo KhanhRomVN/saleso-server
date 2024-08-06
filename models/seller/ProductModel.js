@@ -76,16 +76,9 @@ const ProductModel = {
   getProductByProdId: async (product_id) =>
     handleDBOperation(async (collection) => {
       if (!ObjectId.isValid(product_id)) throw new Error("Invalid product ID");
-
-      const cacheKey = `product:${product_id}`;
-      const cachedProduct = await redisClient.get(cacheKey);
-      if (cachedProduct) return JSON.parse(cachedProduct);
-
       const product = await collection.findOne({
         _id: new ObjectId(product_id),
       });
-      if (product)
-        await redisClient.setEx(cacheKey, 3600, JSON.stringify(product));
       return product;
     }),
 

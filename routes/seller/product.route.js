@@ -32,7 +32,6 @@ const routes = [
   {
     method: "get",
     path: "/:product_id",
-    middleware: [cacheMiddleware(300)],
     handler: ProductController.getProductById,
   },
   {

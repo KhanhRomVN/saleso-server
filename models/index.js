@@ -2,6 +2,7 @@
 const CartModel = require("./customer/CartModel");
 const OrderModel = require("./customer/OrderModel");
 const ReviewModel = require("./customer/ReviewModel");
+const WishlistModel = require("./customer/WishlistModel");
 
 // Seller
 const ProductModel = require("./seller/ProductModel");
@@ -18,8 +19,9 @@ const OTPModel = require("./user/OTPModel");
 const UserDetailModel = require("./user/UserDetailModel");
 const UserModel = require("./user/UserModel");
 
-// Developer
-const ImageModel = require("./developer/ImageModel");
+// Employee
+const ImageModel = require("./employee/ImageModel");
+const EmployeeModel = require("./employee/EmployeeModel");
 
 module.exports = {
   CartModel,
@@ -38,4 +40,6 @@ module.exports = {
   ImageModel,
   DiscountModel,
   RedemptionModel,
+  EmployeeModel,
+  WishlistModel,
 };

@@ -1,6 +1,5 @@
 const express = require("express");
-const { CategoryController } = require("../../controller/index");
-const { authSellerToken } = require("../../middleware/authToken");
+const { CategoryController } = require("../../controller");
 const router = express.Router();
 
 const routes = [
@@ -24,7 +23,6 @@ const routes = [
     path: "/root",
     handler: CategoryController.getRootCategories,
   },
-
   { method: "get", path: "/all", handler: CategoryController.getCategories },
   {
     method: "put",
@@ -38,8 +36,8 @@ const routes = [
   },
 ];
 
-routes.forEach(({ method, path, middleware = [], handler }) => {
-  router[method](path, ...middleware, handler);
+routes.forEach(({ method, path, handler }) => {
+  router[method](path, handler);
 });
 
 module.exports = router;

@@ -1,4 +1,4 @@
-const { CategoryModel, ProductModel } = require("../../models/index");
+const { CategoryModel, ProductModel } = require("../../models");
 const logger = require("../../config/logger");
 
 const handleRequest = async (req, res, operation) => {
@@ -13,77 +13,66 @@ const handleRequest = async (req, res, operation) => {
   }
 };
 
-const getCategories = (req, res) =>
-  handleRequest(req, res, async () => {
-    const categories = await CategoryModel.getCategories();
-    const categoriesWithProductCount = await Promise.all(
-      categories.map(async (category) => {
-        const { count } = await ProductModel.getNumberProductByCategory(
-          category.name
-        );
-        return { ...category, number_product: count };
-      })
-    );
-    return categoriesWithProductCount;
-  });
-
-const getRootCategories = (req, res) =>
-  handleRequest(req, res, async () => {
-    const rootCategories = await CategoryModel.getRootCategories();
-    const rootCategoriesWithProductCount = await Promise.all(
-      rootCategories.map(async (category) => {
-        const { count } = await ProductModel.getNumberProductByCategory(
-          category.name
-        );
-        return { ...category, number_product: count };
-      })
-    );
-    return rootCategoriesWithProductCount;
-  });
-
-const createCategory = (req, res) =>
-  handleRequest(req, res, async (req) => {
-    const { path } = req.body;
-    if (!Array.isArray(path) || path.length === 0) {
-      throw new Error("Invalid category path");
-    }
-    return await CategoryModel.createCategory(path);
-  });
-
-const getCategoryById = (req, res) =>
-  handleRequest(
-    req,
-    res,
-    async (req) => await CategoryModel.getCategoryById(req.params.id)
+const addProductCount = async (categories) => {
+  return Promise.all(
+    categories.map(async (category) => {
+      const { count } = await ProductModel.getNumberProductByCategory(
+        category.name
+      );
+      return { ...category, number_product: count };
+    })
   );
-
-const getChildrenCategories = (req, res) =>
-  handleRequest(
-    req,
-    res,
-    async (req) => await CategoryModel.getChildrenCategories(req.params.value)
-  );
-
-const updateCategory = (req, res) =>
-  handleRequest(
-    req,
-    res,
-    async (req) => await CategoryModel.updateCategory(req.params.id, req.body)
-  );
-
-const deleteCategory = (req, res) =>
-  handleRequest(
-    req,
-    res,
-    async (req) => await CategoryModel.deleteCategory(req.params.id)
-  );
-
-module.exports = {
-  getCategories,
-  createCategory,
-  getCategoryById,
-  getRootCategories,
-  getChildrenCategories,
-  updateCategory,
-  deleteCategory,
 };
+
+const CategoryController = {
+  getCategories: (req, res) =>
+    handleRequest(req, res, async () => {
+      const categories = await CategoryModel.getCategories();
+      return addProductCount(categories);
+    }),
+
+  getRootCategories: (req, res) =>
+    handleRequest(req, res, async () => {
+      const rootCategories = await CategoryModel.getRootCategories();
+      return addProductCount(rootCategories);
+    }),
+
+  createCategory: (req, res) =>
+    handleRequest(req, res, async (req) => {
+      const { path, description } = req.body;
+      if (!Array.isArray(path) || path.length === 0) {
+        throw new Error("Invalid category path");
+      }
+      return await CategoryModel.createCategory(path, description);
+    }),
+
+  getCategoryById: (req, res) =>
+    handleRequest(
+      req,
+      res,
+      async (req) => await CategoryModel.getCategoryById(req.params.id)
+    ),
+
+  getChildrenCategories: (req, res) =>
+    handleRequest(
+      req,
+      res,
+      async (req) => await CategoryModel.getChildrenCategories(req.params.value)
+    ),
+
+  updateCategory: (req, res) =>
+    handleRequest(
+      req,
+      res,
+      async (req) => await CategoryModel.updateCategory(req.params.id, req.body)
+    ),
+
+  deleteCategory: (req, res) =>
+    handleRequest(
+      req,
+      res,
+      async (req) => await CategoryModel.deleteCategory(req.params.id)
+    ),
+};
+
+module.exports = CategoryController;

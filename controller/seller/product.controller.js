@@ -100,9 +100,55 @@ const ProductController = {
     }),
 
   getProductById: (req, res) =>
-    handleRequest(req, res, async (req) =>
-      ProductModel.getProductByProdId(req.params.product_id)
-    ),
+    handleRequest(req, res, async (req) => {
+      const product = await ProductModel.getProductByProdId(
+        req.params.product_id
+      );
+
+      if (!product) {
+        return res.status(404).json({ message: "Product not found" });
+      }
+
+      const discounts = await Promise.all(
+        product.ongoing_discounts.map(async (discountId) => {
+          const discount = await DiscountModel.getDiscountById(discountId);
+          switch (discount.type) {
+            case "percentage":
+              return `Discount ${discount.value}%`;
+            case "fixed":
+              return `Discount -${discount.value}$`;
+            case "buy_x_get_y":
+              return `Buy ${discount.value.buyQuantity} Get ${discount.value.getFreeQuantity}`;
+            case "flash-sale":
+              return `Flashsale ${discount.value}%`;
+            default:
+              return "";
+          }
+        })
+      );
+
+      const reviews = await ReviewModel.getAverageRatingForProduct(
+        req.params.product_id
+      );
+
+      const {
+        is_active,
+        createdAt,
+        updatedAt,
+        expired_discounts,
+        ongoing_discounts,
+        upcoming_discounts,
+        ...refinedProduct
+      } = product;
+
+      const response = {
+        ...refinedProduct,
+        discounts,
+        reviews,
+      };
+
+      return response;
+    }),
 
   getProductsBySellerId: (req, res) =>
     handleRequest(req, res, async (req) =>

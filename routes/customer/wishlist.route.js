@@ -1,5 +1,5 @@
 const express = require("express");
-const { CartController } = require("../../controller/index");
+const { WishlistController } = require("../../controller/index");
 const { authCustomerToken } = require("../../middleware/authToken");
 const router = express.Router();
 
@@ -7,27 +7,22 @@ const routes = [
   {
     method: "get",
     path: "/",
-    handler: CartController.getCart,
+    handler: WishlistController.getWishlist,
   },
   {
     method: "post",
     path: "/add",
-    handler: CartController.addItem,
-  },
-  {
-    method: "put",
-    path: "/update",
-    handler: CartController.updateItem,
+    handler: WishlistController.addItem,
   },
   {
     method: "delete",
     path: "/remove/:productId",
-    handler: CartController.removeItem,
+    handler: WishlistController.removeItem,
   },
   {
     method: "delete",
     path: "/clear",
-    handler: CartController.clearCart,
+    handler: WishlistController.clearWishlist,
   },
 ];
 

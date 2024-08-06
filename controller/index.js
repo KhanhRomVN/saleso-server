@@ -3,6 +3,7 @@ const CartController = require("./customer/cart.controller");
 const OrderController = require("./customer/order.controller");
 const ReviewController = require("./customer/review.controller");
 const CustomerController = require("./customer/customer.controller");
+const WishlistController = require("./customer/wishlist.controller");
 
 // Seller
 const ProductController = require("./seller/product.controller");
@@ -17,8 +18,9 @@ const ConservationController = require("./user/conservation.controller");
 const UserController = require("./user/user.controller");
 const NotificationController = require("./user/notification.controller");
 
-// Developer
-const ImageController = require("./developer/image.controller");
+// Employee
+const ImageController = require("./employee/image.controller");
+const EmployeeController = require("./employee/employee.controller");
 
 module.exports = {
   ProductController,
@@ -35,4 +37,6 @@ module.exports = {
   ImageController,
   DiscountController,
   RedemptionController,
+  EmployeeController,
+  WishlistController,
 };

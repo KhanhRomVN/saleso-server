@@ -1,94 +1,115 @@
 const { getDB } = require("../../config/mongoDB");
 const { ObjectId } = require("mongodb");
+const Joi = require("joi");
 
 const COLLECTION_NAME = "carts";
+const COLLECTION_SCHEMA = Joi.object({
+  customer_id: Joi.string().required(),
+  items: Joi.array()
+    .items(
+      Joi.object({
+        productId: Joi.string().required(),
+        quantity: Joi.number().integer().min(1).required(),
+      })
+    )
+    .required(),
+  createdAt: Joi.date().default(Date.now),
+  updatedAt: Joi.date().default(Date.now),
+}).options({ abortEarly: false });
 
-class CartModel {
-  static async addCart(user_id, prodId, quantity = 1) {
-    const db = getDB();
-    await db.collection(COLLECTION_NAME).updateOne(
+const CartModel = {
+  async getCart(customer_id) {
+    const db = await getDB();
+    return db
+      .collection(COLLECTION_NAME)
+      .findOne({ customer_id: new ObjectId(customer_id) });
+  },
+
+  async addItem(customer_id, productId, quantity) {
+    const db = await getDB();
+    const result = await db.collection(COLLECTION_NAME).updateOne(
+      { customer_id: new ObjectId(customer_id) },
       {
-        user_id: new ObjectId(user_id),
-        "products.prodId": new ObjectId(prodId),
-      },
-      {
-        $inc: { "products.$.quantity": quantity },
+        $push: {
+          items: {
+            productId: new ObjectId(productId),
+            quantity: quantity,
+          },
+        },
         $setOnInsert: { createdAt: new Date() },
         $set: { updatedAt: new Date() },
       },
       { upsert: true }
     );
-  }
 
-  static async getListProductOfCart(user_id) {
-    const db = getDB();
-    return db
+    const { value: updatedCart } = await db
       .collection(COLLECTION_NAME)
-      .aggregate([
-        { $match: { user_id: new ObjectId(user_id) } },
-        { $unwind: "$products" },
-        {
-          $lookup: {
-            from: "products",
-            localField: "products.prodId",
-            foreignField: "_id",
-            as: "productDetails",
-          },
-        },
-        {
-          $project: {
-            _id: 0,
-            prodId: "$products.prodId",
-            quantity: "$products.quantity",
-            name: { $arrayElemAt: ["$productDetails.name", 0] },
-            price: { $arrayElemAt: ["$productDetails.price", 0] },
-            image: { $arrayElemAt: ["$productDetails.image", 0] },
-          },
-        },
-      ])
-      .toArray();
-  }
-
-  static async updateCartQuantity(user_id, prodId, quantity) {
-    const db = getDB();
-    if (quantity > 0) {
-      await db.collection(COLLECTION_NAME).updateOne(
-        {
-          user_id: new ObjectId(user_id),
-          "products.prodId": new ObjectId(prodId),
-        },
-        {
-          $set: { "products.$.quantity": quantity, updatedAt: new Date() },
-        }
+      .findOneAndUpdate(
+        { customer_id: new ObjectId(customer_id) },
+        { $set: { updatedAt: new Date() } },
+        { returnDocument: "after" }
       );
-    } else {
-      await this.delCart(user_id, prodId);
+
+    const { error } = COLLECTION_SCHEMA.validate(updatedCart);
+    if (error)
+      throw new Error(
+        `Cart validation error: ${error.details.map((d) => d.message).join(", ")}`
+      );
+
+    return updatedCart;
+  },
+
+  async updateItem(customer_id, productId, quantity) {
+    const db = await getDB();
+    const result = await db.collection(COLLECTION_NAME).updateOne(
+      {
+        customer_id: new ObjectId(customer_id),
+        "items.productId": new ObjectId(productId),
+      },
+      {
+        $set: { "items.$.quantity": quantity, updatedAt: new Date() },
+      }
+    );
+
+    if (result.matchedCount === 0) {
+      throw new Error("Item not found in cart");
     }
-  }
 
-  static async delCart(user_id, prodId) {
-    const db = getDB();
-    await db.collection(COLLECTION_NAME).updateOne(
-      { user_id: new ObjectId(user_id) },
+    return this.getCart(customer_id);
+  },
+
+  async removeItem(customer_id, productId) {
+    const db = await getDB();
+    const result = await db.collection(COLLECTION_NAME).updateOne(
+      { customer_id: new ObjectId(customer_id) },
       {
-        $pull: { products: { prodId: new ObjectId(prodId) } },
+        $pull: { items: { productId: new ObjectId(productId) } },
         $set: { updatedAt: new Date() },
       }
     );
-  }
 
-  static async delCarts(user_id, prodList) {
-    const db = getDB();
-    await db.collection(COLLECTION_NAME).updateOne(
-      { user_id: new ObjectId(user_id) },
+    if (result.modifiedCount === 0) {
+      throw new Error("Item not found in cart");
+    }
+
+    return this.getCart(customer_id);
+  },
+
+  async clearCart(customer_id) {
+    const db = await getDB();
+    const result = await db.collection(COLLECTION_NAME).updateOne(
+      { customer_id: new ObjectId(customer_id) },
       {
-        $pull: {
-          products: { prodId: { $in: prodList.map((id) => new ObjectId(id)) } },
-        },
-        $set: { updatedAt: new Date() },
+        $set: { items: [], updatedAt: new Date() },
       }
     );
-  }
-}
+
+    if (result.matchedCount === 0) {
+      throw new Error("Cart not found");
+    }
+
+    return this.getCart(customer_id);
+  },
+};
 
 module.exports = CartModel;
