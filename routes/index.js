@@ -20,6 +20,7 @@ const notification = require("./user/notification.route");
 
 // Developer
 const image = require("./employee/image.route");
+const elastic = require("./elasticsearch.route");
 
 module.exports = {
   auth,
@@ -37,4 +38,5 @@ module.exports = {
   image,
   discount,
   redemption,
+  elastic,
 };

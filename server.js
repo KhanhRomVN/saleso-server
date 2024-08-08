@@ -8,6 +8,8 @@ const cors = require("cors");
 const http = require("http");
 const socketIo = require("socket.io");
 
+const { connectElasticsearch } = require("./config/elasticsearchClient");
+
 //* Redis
 const { connectRedis } = require("./config/redisClient");
 
@@ -69,7 +71,7 @@ app.use(errorHandler);
 //* Start Server
 const PORT = process.env.PORT || 8080;
 
-Promise.all([connectDB(), connectRedis()])
+Promise.all([connectDB(), connectRedis(), connectElasticsearch()])
   .then(() => {
     server.listen(PORT, () => {
       console.log(`Server is running on port: ${PORT}`);

@@ -40,14 +40,19 @@ const routes = [
     handler: ProductController.getProductsBySellerId,
   },
   {
-    method: "post",
-    path: "/flash-sale",
-    handler: ProductController.getFlashSaleProducts,
-  },
-  {
     method: "get",
     path: "/discount/by-seller/:seller_id",
     handler: ProductController.getProductsWithDiscountBySellerId,
+  },
+  {
+    method: "post",
+    path: "/all",
+    handler: ProductController.getAllProduct,
+  },
+  {
+    method: "post",
+    path: "/flash-sale",
+    handler: ProductController.getFlashSaleProducts,
   },
   {
     method: "post",
@@ -57,7 +62,6 @@ const routes = [
   {
     method: "get",
     path: "/by-category/:category",
-    middleware: [cacheMiddleware(1800)],
     handler: ProductController.getProductsByCategory,
   },
   {
@@ -67,8 +71,8 @@ const routes = [
   },
   {
     method: "post",
-    path: "/search",
-    handler: ProductController.searchProducts,
+    path: "/filter",
+    handler: ProductController.filterProducts,
   },
   {
     method: "put",

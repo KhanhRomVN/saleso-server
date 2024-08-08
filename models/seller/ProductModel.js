@@ -2,6 +2,7 @@ const Joi = require("joi");
 const { getDB } = require("../../config/mongoDB");
 const { ObjectId } = require("mongodb");
 const DiscountModel = require("./DiscountModel");
+const { client } = require("../../config/elasticsearchClient");
 const { redisClient } = require("../../config/redisClient");
 const cron = require("node-cron");
 
@@ -97,18 +98,11 @@ const ProductModel = {
         throw new Error("Invalid category");
       }
 
-      const cacheKey = `category:${category}:count`;
-      const cachedCount = await redisClient.get(cacheKey);
-      if (cachedCount) {
-        return { category, count: parseInt(cachedCount) };
-      }
-
       const count = await collection.countDocuments({
         category: { $in: [category] },
         is_active: "Y",
       });
 
-      await redisClient.setEx(cacheKey, 3600, count.toString()); // Cache for 1 hour
       return { category, count };
     }),
 
@@ -125,16 +119,43 @@ const ProductModel = {
       return products;
     }),
 
-  getAllProducts: async () =>
+  getProductsByCategories: async (categories) =>
     handleDBOperation(async (collection) => {
-      const cacheKey = "allProducts";
-      const cachedProducts = await redisClient.get(cacheKey);
-      if (cachedProducts) {
-        return JSON.parse(cachedProducts);
+      if (!Array.isArray(categories) || categories.length === 0) {
+        throw new Error("Invalid categories input");
       }
-      const products = await collection.find().toArray();
-      await redisClient.setEx(cacheKey, 3600, JSON.stringify(products)); // Cache for 1 hour
+      const products = await collection
+        .find({
+          categories: { $in: categories },
+          is_active: "Y",
+        })
+        .toArray();
       return products;
+    }),
+
+  getAllProduct: async (page = 1, limit = 10) =>
+    handleDBOperation(async (collection) => {
+      const skip = (page - 1) * limit;
+
+      const products = await collection
+        .find({ is_active: "Y" })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .toArray();
+
+      const total = await collection.countDocuments({ is_active: "Y" });
+
+      const result = {
+        products,
+        total,
+        page,
+        totalPages: Math.ceil(total / limit),
+        hasNextPage: page * limit < total,
+        hasPrevPage: page > 1,
+      };
+
+      return result;
     }),
 
   updateProduct: async (product_id, updateData) =>
@@ -294,71 +315,6 @@ const ProductModel = {
       return topProducts;
     }),
 
-  getProductsByCategories: async (categories) =>
-    handleDBOperation(async (collection) => {
-      if (!Array.isArray(categories) || categories.length === 0) {
-        throw new Error("Invalid categories input");
-      }
-      const products = await collection
-        .find({
-          categories: { $in: categories },
-          is_active: "Y",
-        })
-        .toArray();
-      return products;
-    }),
-
-  searchProducts: async (query, options = {}) =>
-    handleDBOperation(async (collection) => {
-      const {
-        limit = 20,
-        skip = 0,
-        sort = { createdAt: -1 },
-        minPrice,
-        maxPrice,
-        categories,
-      } = options;
-
-      const filter = {
-        $text: { $search: query },
-        is_active: "Y",
-      };
-
-      if (minPrice !== undefined || maxPrice !== undefined) {
-        filter.price = {};
-        if (minPrice !== undefined) filter.price.$gte = minPrice;
-        if (maxPrice !== undefined) filter.price.$lte = maxPrice;
-      }
-
-      if (categories && categories.length > 0) {
-        filter.categories = { $in: categories };
-      }
-
-      const cacheKey = `search:${query}:${JSON.stringify(options)}`;
-      const cachedResults = await redisClient.get(cacheKey);
-      if (cachedResults) {
-        return JSON.parse(cachedResults);
-      }
-
-      const products = await collection
-        .find(filter)
-        .sort(sort)
-        .skip(skip)
-        .limit(limit)
-        .toArray();
-
-      const total = await collection.countDocuments(filter);
-
-      const results = {
-        products,
-        total,
-        page: Math.floor(skip / limit) + 1,
-        limit,
-      };
-      await redisClient.setEx(cacheKey, 300, JSON.stringify(results)); // Cache for 5 minutes
-      return results;
-    }),
-
   updateStock: async (productId, quantity) =>
     handleDBOperation(async (collection) => {
       if (!ObjectId.isValid(productId)) {
@@ -378,11 +334,34 @@ const ProductModel = {
         throw new Error("Product not found or update failed");
       }
 
-      // Clear cache for this product
-      await redisClient.del(`product:${productId}`);
-      await redisClient.del("allProducts");
-
       return result.value;
+    }),
+
+  syncProductToES: async (productId) =>
+    handleDBOperation(async (collection) => {
+      const product = await ProductModel.getProductByProdId(productId);
+      if (!product) {
+        throw new Error("Product not found");
+      }
+
+      const esProduct = {
+        id: product._id.toString(),
+        name: product.name,
+        description: product.description,
+        price: product.price,
+        categories: product.categories,
+        brand: product.brand,
+        isHandmade: product.isHandmade,
+        countryOfOrigin: product.countryOfOrigin,
+        attributes: product.attributes,
+        commonAttributes: product.commonAttributes,
+      };
+
+      await client.index({
+        index: "products",
+        id: esProduct.id,
+        body: esProduct,
+      });
     }),
 };
 

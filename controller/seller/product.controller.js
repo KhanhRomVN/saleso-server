@@ -5,6 +5,8 @@ const {
 } = require("../../models/index");
 const logger = require("../../config/logger");
 const { redisClient } = require("../../config/redisClient");
+const { client } = require("../../config/elasticsearchClient");
+const { searchProducts } = require("../../services/productSearch");
 
 const createDescriptionDiscount = (discount) => {
   if (!discount) return null;
@@ -85,19 +87,16 @@ const clearProductCache = async (productId) => {
 };
 
 const ProductController = {
-  createProduct: (req, res) =>
-    handleRequest(req, res, async (req) => {
-      const productData = {
-        ...req.body,
-        seller_id: req.user._id.toString(),
-        upcoming_discounts: [],
-        ongoing_discounts: [],
-        expired_discounts: [],
-      };
-      const newProduct = await ProductModel.createProduct(productData);
-      await clearProductCache(newProduct._id);
-      return { message: "Product added successfully", product: newProduct };
-    }),
+  createProduct: async (req, res) => {
+    try {
+      const newProduct = await ProductModel.createProduct(req.body);
+      await ProductModel.syncProductToES(newProduct._id);
+      res.status(201).json(newProduct);
+    } catch (error) {
+      console.error("Error creating product:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  },
 
   getProductById: (req, res) =>
     handleRequest(req, res, async (req) => {
@@ -154,6 +153,32 @@ const ProductController = {
     handleRequest(req, res, async (req) =>
       ProductModel.getListProductBySellerId(req.params.seller_id)
     ),
+
+  getAllProduct: (req, res) =>
+    handleRequest(req, res, async (req) => {
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 10;
+
+      const result = await ProductModel.getAllProduct(page, limit);
+
+      const processedProducts = await Promise.all(
+        result.products.map(async (product) => {
+          const { averageRating, totalReviews } =
+            await ReviewModel.getAverageRatingForProduct(product._id);
+
+          return {
+            ...product,
+            averageRating: averageRating || 0,
+            totalReviews: totalReviews || 0,
+          };
+        })
+      );
+
+      return {
+        ...result,
+        products: processedProducts,
+      };
+    }),
 
   getProductsWithDiscountBySellerId: (req, res) =>
     handleRequest(req, res, async (req) => {
@@ -279,44 +304,184 @@ const ProductController = {
       return productsByCategory;
     }),
 
-  searchProducts: (req, res) =>
+  filterProducts: async (req, res) =>
     handleRequest(req, res, async (req) => {
-      const { query, limit, skip, sort, minPrice, maxPrice, categories } =
-        req.body;
-      return ProductModel.searchProducts(query, {
-        limit,
-        skip,
-        sort,
-        minPrice,
-        maxPrice,
-        categories,
-      });
+      try {
+        const {
+          name,
+          price,
+          sortByPrice,
+          countryOfOrigin,
+          brand,
+          isHandmade,
+          units_sold,
+          sortByUnitsSold,
+          attributes,
+          categories,
+        } = req.body;
+
+        let query = {
+          bool: {
+            must: [],
+            filter: [],
+          },
+        };
+
+        // Filter by name
+        if (name) {
+          query.bool.must.push({
+            match: {
+              name: {
+                query: name,
+                fuzziness: "AUTO",
+              },
+            },
+          });
+        }
+
+        // Filter by price
+        if (price && (price.min !== undefined || price.max !== undefined)) {
+          const priceRange = {};
+          if (price.min !== undefined) priceRange.gte = price.min;
+          if (price.max !== undefined) priceRange.lte = price.max;
+          query.bool.filter.push({ range: { price: priceRange } });
+        }
+
+        // Filter by country of origin
+        if (countryOfOrigin) {
+          query.bool.filter.push({
+            term: { countryOfOrigin: countryOfOrigin },
+          });
+        }
+
+        // Filter by brand
+        if (brand) {
+          query.bool.filter.push({ term: { brand: brand } });
+        }
+
+        // Filter by isHandmade
+        if (isHandmade !== undefined) {
+          query.bool.filter.push({ term: { isHandmade: isHandmade } });
+        }
+
+        // Filter by units sold
+        if (
+          units_sold &&
+          (units_sold.min !== undefined || units_sold.max !== undefined)
+        ) {
+          const unitsRange = {};
+          if (units_sold.min !== undefined) unitsRange.gte = units_sold.min;
+          if (units_sold.max !== undefined) unitsRange.lte = units_sold.max;
+          query.bool.filter.push({ range: { units_sold: unitsRange } });
+        }
+
+        // Filter by attributes
+        if (attributes) {
+          if (Array.isArray(attributes)) {
+            // Case: ["color"]
+            attributes.forEach((attr) => {
+              query.bool.filter.push({
+                nested: {
+                  path: "attributes",
+                  query: {
+                    bool: {
+                      must: [{ exists: { field: `attributes.${attr}` } }],
+                    },
+                  },
+                },
+              });
+            });
+          } else if (typeof attributes === "object") {
+            // Case: { "color": [{ "value": "red" }] }
+            Object.entries(attributes).forEach(([key, values]) => {
+              if (Array.isArray(values)) {
+                values.forEach((value) => {
+                  query.bool.filter.push({
+                    nested: {
+                      path: "attributes",
+                      query: {
+                        bool: {
+                          must: [
+                            { match: { [`attributes.${key}`]: value.value } },
+                          ],
+                        },
+                      },
+                    },
+                  });
+                });
+              }
+            });
+          }
+        }
+
+        // Filter by categories
+        if (categories && Array.isArray(categories)) {
+          query.bool.filter.push({
+            terms: { categories: categories },
+          });
+        }
+
+        // Sorting
+        let sort = [];
+        if (sortByPrice) {
+          sort.push({ price: { order: sortByPrice } });
+        }
+        if (sortByUnitsSold) {
+          sort.push({ units_sold: { order: sortByUnitsSold } });
+        }
+
+        // Perform the search
+        const result = await client.search({
+          index: "products",
+          body: {
+            query: query,
+            sort: sort,
+          },
+        });
+
+        // Process and return the results
+        const products = result.hits.hits.map((hit) => ({
+          _id: hit._id,
+          ...hit._source,
+        }));
+
+        res.json({
+          total: result.hits.total.value,
+          products: products,
+        });
+      } catch (error) {
+        console.error("Error filtering products:", error);
+        res.status(500).json({ error: "Internal server error" });
+      }
     }),
 
-  updateProduct: (req, res) =>
-    handleRequest(req, res, async (req) => {
-      const product = await checkUserOwnership(
-        req.params.product_id,
-        req.user._id.toString()
-      );
+  updateProduct: async (req, res) => {
+    try {
       const updatedProduct = await ProductModel.updateProduct(
         req.params.product_id,
         req.body
       );
-      await clearProductCache(req.params.product_id);
-      return {
-        message: "Product updated successfully",
-        product: updatedProduct,
-      };
-    }),
+      await ProductModel.syncProductToES(updatedProduct._id);
+      res.json(updatedProduct);
+    } catch (error) {
+      console.error("Error updating product:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  },
 
-  deleteProduct: (req, res) =>
-    handleRequest(req, res, async (req) => {
-      await checkUserOwnership(req.params.product_id, req.user._id.toString());
+  deleteProduct: async (req, res) => {
+    try {
       await ProductModel.deleteProduct(req.params.product_id);
-      await clearProductCache(req.params.product_id);
-      return { message: "Product deleted successfully" };
-    }),
+      await client.delete({
+        index: "products",
+        id: req.params.product_id,
+      });
+      res.json({ message: "Product deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting product:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  },
 
   updateProductStock: (req, res) =>
     handleRequest(req, res, async (req) => {
