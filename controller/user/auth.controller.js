@@ -1,12 +1,12 @@
-const { UserModel, userDetailModel, OTPModel } = require("../../models/index");
+const { UserModel, OTPModel } = require("../../models/index");
 const transporter = require("../../config/nodemailerConfig");
 const { CustomError } = require("../../middleware/errorHandler");
 const bcryptjs = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
+const logger = require("../../config/logger");
 
 const generateOTP = () => crypto.randomBytes(3).toString("hex");
-
 const getEmailTemplate = (otp, role) => `
 <!DOCTYPE html>
 <html lang="en">
@@ -65,118 +65,122 @@ const getEmailTemplate = (otp, role) => `
 </html>
 `;
 
-const emailVerify = async (req, res, next) => {
-  const { email, role } = req.body;
+const handleRequest = async (req, res, operation) => {
   try {
-    const existingUser = await UserModel.getUserByEmail(email, role);
-    if (existingUser) {
-      throw new CustomError(
-        400,
-        `This <${email}> is linked to another account`
-      );
-    }
+    const result = await operation(req);
+    res.status(200).json(result);
+  } catch (error) {
+    logger.error(`Error in ${operation.name}: ${error}`);
+    res
+      .status(error.status || 500)
+      .json({ error: error.message || "Internal Server Error" });
+  }
+};
 
-    const otp = generateOTP();
-    await OTPModel.storeOTP(email, otp, role);
-
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: `Saleso - Email OTP Confirmation ${role === "seller" ? "Seller" : ""}`,
-      html: getEmailTemplate(otp, role),
+const AuthController = {
+  emailVerify: async (req, res) => {
+    handleRequest(req, res, async (req) => {
+      const { email, role } = req.body;
+      const existingUser = await UserModel.getUserByEmail(email, role);
+      if (existingUser) {
+        throw new CustomError(
+          400,
+          `This <${email}> is linked to another account`
+        );
+      }
+      const otp = generateOTP();
+      await OTPModel.storeOTP(email, otp, role);
+      await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: email,
+        subject: `Saleso - Email OTP Confirmation ${role === "seller" ? "Seller" : ""}`,
+        html: getEmailTemplate(otp, role),
+      });
+      return { message: "Please check the OTP sent to gmail" };
     });
+  },
 
-    res.status(200).json({ message: "Please check the OTP sent to gmail" });
-  } catch (error) {
-    next(error);
-  }
-};
+  registerUserWithOTP: async (req, res) => {
+    handleRequest(req, res, async (req) => {
+      const { email, otp, username, password, role } = req.body;
 
-const registerUserWithOTP = async (req, res, next) => {
-  const { email, otp, username, password, role } = req.body;
-  try {
-    const validOTP = await OTPModel.verifyOTP(email, otp, role);
-    if (!validOTP) {
-      throw new CustomError(400, "Invalid or expired OTP");
-    }
+      const validOTP = await OTPModel.verifyOTP(email, otp, role);
+      if (!validOTP) {
+        throw new CustomError(400, "Invalid or expired OTP");
+      }
 
-    const existingEmail = await UserModel.getUserByEmail(email, role);
-    const existingUsername = await UserModel.getUserByUsername(username, role);
-    if (existingEmail) {
-      throw new CustomError(
-        400,
-        `You cannot register because the email <${email}> already exists`
+      const existingEmail = await UserModel.getUserByEmail(email, role);
+      const existingUsername = await UserModel.getUserByUsername(
+        username,
+        role
       );
-    }
-    if (existingUsername) {
-      throw new CustomError(
-        400,
-        `You cannot register because the username <${username}> already exists`
+
+      if (existingEmail) {
+        throw new CustomError(
+          400,
+          `You cannot register because the email <${email}> already exists`
+        );
+      }
+      if (existingUsername) {
+        throw new CustomError(
+          400,
+          `You cannot register because the username <${username}> already exists`
+        );
+      }
+
+      const hashedPassword = await bcryptjs.hash(password, 10);
+      const userData = {
+        username,
+        email,
+        role,
+        emailConfirmed: "true",
+        password: hashedPassword,
+        register_at: new Date(),
+      };
+
+      await UserModel.registerUser(email, role, userData);
+      const user = await UserModel.getUserByEmail(email, role);
+      await userDetailModel.createUserDetail(user._id);
+      return { message: "User registered successfully" };
+    });
+  },
+
+  loginUser: async (req, res) => {
+    handleRequest(req, res, async (req) => {
+      const { email, password, role } = req.body;
+      const existingUser = await UserModel.getUserByEmail(email, role);
+      if (!existingUser) {
+        throw new CustomError(401, "This email has not been registered.");
+      }
+      const isPasswordValid = await bcryptjs.compare(
+        password,
+        existingUser.password
       );
-    }
+      if (!isPasswordValid) {
+        throw new CustomError(401, "This password is not valid");
+      }
 
-    const hashedPassword = await bcryptjs.hash(password, 10);
-    const userData = {
-      username,
-      email,
-      role,
-      emailConfirmed: "true",
-      password: hashedPassword,
-      register_at: new Date(),
-    };
+      const accessToken = jwt.sign(
+        { user_id: existingUser._id },
+        process.env.JWT_SECRET_KEY,
+        { expiresIn: "1d" }
+      );
+      const refreshToken = jwt.sign(
+        { user_id: existingUser._id },
+        process.env.JWT_SECRET_KEY,
+        { expiresIn: "7d" }
+      );
+      await UserModel.updateRefreshToken(existingUser._id, refreshToken, role);
 
-    await UserModel.registerUser(email, role, userData);
-    const user = await UserModel.getUserByEmail(email, role);
-    await userDetailModel.createUserDetail(user._id);
-    res.status(201).json({ message: "User registered successfully" });
-  } catch (error) {
-    next(error);
-  }
-};
-
-const loginUser = async (req, res, next) => {
-  const { email, password, role } = req.body;
-  try {
-    const existingUser = await UserModel.getUserByEmail(email, role);
-    if (!existingUser) {
-      throw new CustomError(401, "This email has not been registered.");
-    }
-    const isPasswordValid = await bcryptjs.compare(
-      password,
-      existingUser.password
-    );
-    if (!isPasswordValid) {
-      throw new CustomError(401, "This password is not valid");
-    }
-
-    const accessToken = jwt.sign(
-      { user_id: existingUser._id },
-      process.env.JWT_SECRET_KEY,
-      { expiresIn: "1d" }
-    );
-    const refreshToken = jwt.sign(
-      { user_id: existingUser._id },
-      process.env.JWT_SECRET_KEY,
-      { expiresIn: "7d" }
-    );
-    await UserModel.updateRefreshToken(existingUser._id, refreshToken, role);
-
-    res.status(200).json({
-      accessToken,
-      refreshToken,
-      currentUser: {
+      const currentUser = {
         user_id: existingUser._id,
         username: existingUser.username,
         role: role,
-      },
+      };
+
+      return { accessToken, refreshToken, currentUser };
     });
-  } catch (error) {
-    next(error);
-  }
+  },
 };
 
-module.exports = {
-  emailVerify,
-  registerUserWithOTP,
-  loginUser,
-};
+module.exports = AuthController;

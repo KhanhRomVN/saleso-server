@@ -1,6 +1,5 @@
 const { getDB } = require("../../config/mongoDB");
 const Joi = require("joi");
-const UserModel = require("./UserModel");
 
 const COLLECTION_NAME = "user_detail";
 const COLLECTION_SCHEMA = Joi.object({
@@ -13,53 +12,37 @@ const COLLECTION_SCHEMA = Joi.object({
   avatar: Joi.string().uri().optional(),
 }).options({ abortEarly: false });
 
-const validateUserDetail = (userDetailData) => {
-  const validation = COLLECTION_SCHEMA.validate(userDetailData);
-  if (validation.error) {
-    throw new Error(
-      validation.error.details.map((detail) => detail.message).join(", ")
-    );
-  }
-};
+const UserDetailModel = {
+  validateUserDetail: (userDetailData) => {
+    const validation = COLLECTION_SCHEMA.validate(userDetailData);
+    if (validation.error) {
+      throw new Error(
+        validation.error.details.map((detail) => detail.message).join(", ")
+      );
+    }
+  },
 
-const createUserDetail = async (user_id) => {
-  try {
+  createUserDetail: async (user_id) => {
     const db = getDB();
     await db
       .collection(COLLECTION_NAME)
       .insertOne({ user_id: user_id.toString() });
-  } catch (error) {
-    console.error("Error adding user detail:", error);
-    throw new Error("Failed to add user detail");
-  }
-};
+  },
 
-const getUserDetailByUserId = async (userId) => {
-  try {
+  getUserDetailByUserId: async (userId) => {
     const db = getDB();
     return await db.collection(COLLECTION_NAME).findOne({ user_id: userId });
-  } catch (error) {
-    console.error("Error getting user detail:", error);
-    throw new Error("Failed to get user detail");
-  }
-};
+  },
 
-const updateUserDetailField = async (user_id, updateData) => {
-  const db = getDB();
-  try {
+  updateUserDetailField: async (user_id, updateData) => {
+    const db = getDB();
     await db
       .collection(COLLECTION_NAME)
       .updateOne(
         { user_id },
         { $set: updateData, $currentDate: { update_at: true } }
       );
-  } catch (error) {
-    throw new Error("Failed to update user detail: " + error.message);
-  }
+  },
 };
 
-module.exports = {
-  createUserDetail,
-  getUserDetailByUserId,
-  updateUserDetailField,
-};
+module.exports = UserDetailModel;

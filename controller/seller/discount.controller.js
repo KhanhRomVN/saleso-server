@@ -65,12 +65,6 @@ const DiscountController = {
         res.status(404).json({ error: "Discount not found" });
         return;
       }
-      if (discount.seller_id !== req.user._id) {
-        res
-          .status(403)
-          .json({ error: "You are not authorized to view this discount" });
-        return;
-      }
       return discount;
     }),
 

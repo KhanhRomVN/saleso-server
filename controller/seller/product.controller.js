@@ -89,7 +89,10 @@ const clearProductCache = async (productId) => {
 const ProductController = {
   createProduct: async (req, res) => {
     try {
-      const newProduct = await ProductModel.createProduct(req.body);
+      const newProduct = await ProductModel.createProduct(
+        req.body,
+        req.user._id.toString()
+      );
       await ProductModel.syncProductToES(newProduct._id);
       res.status(201).json(newProduct);
     } catch (error) {

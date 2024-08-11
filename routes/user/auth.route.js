@@ -1,14 +1,28 @@
 const express = require("express");
-const { AuthController } = require("../../controller/index");
 const { authToken } = require("../../middleware/authToken");
+const { AuthController } = require("../../controller/index");
 const router = express.Router();
 
-router.post("/email-verify", AuthController.emailVerify);
-router.post("/register-otp", AuthController.registerUserWithOTP);
-router.post("/login", AuthController.loginUser);
+const routes = [
+  {
+    method: "post",
+    path: "/email-verify",
+    handler: AuthController.emailVerify,
+  },
+  {
+    method: "post",
+    path: "/register-otp",
+    handler: AuthController.registerUserWithOTP,
+  },
+  {
+    method: "post",
+    path: "/login",
+    handler: AuthController.loginUser,
+  },
+];
 
-// Commented out routes can be uncommented when implemented
-// router.post("/login/google", AuthController.loginGoogleUser);
-// router.post("/logout", authToken, AuthController.logoutUser);
+routes.forEach(({ method, path, middleware = [], handler }) => {
+  router[method](path, ...middleware, handler);
+});
 
 module.exports = router;

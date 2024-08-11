@@ -8,7 +8,7 @@ const cron = require("node-cron");
 
 const COLLECTION_NAME = "products";
 const COLLECTION_SCHEMA = Joi.object({
-  seller_id: Joi.string().required(),
+  seller_id: Joi.string(),
   name: Joi.string().required(),
   images: Joi.array().items(Joi.string()).required(),
   description: Joi.string(),
@@ -21,29 +21,26 @@ const COLLECTION_SCHEMA = Joi.object({
   upcoming_discounts: Joi.array().items(Joi.string()),
   ongoing_discounts: Joi.array().items(Joi.string()),
   expired_discounts: Joi.array().items(Joi.string()),
-  attributes: Joi.object().pattern(
-    Joi.string(),
-    Joi.array()
-      .items(
-        Joi.object({
-          value: Joi.string().required(),
-          quantity: Joi.string().pattern(/^\d+$/).required(),
-          price: Joi.string().pattern(/^\d+$/).required(),
-        })
-      )
-      .min(1)
-  ),
-  commonAttributes: Joi.array()
+  attributes_name: Joi.string(),
+  attributes: Joi.array()
+  .items(
+    Joi.object({
+    attributes_value: Joi.string().required(),
+    attributes_quantity: Joi.number().required(),
+    attributes_price: Joi.number().required(),
+  })).min(2),
+  details: Joi.array()
     .items(
       Joi.object({
-        name: Joi.string().required(),
-        info: Joi.string().required(),
+        details_name: Joi.string().required(),
+        details_info: Joi.string().required(),
       })
     )
     .min(0),
+  tags: Joi.array().items(Joi.string()),
   units_sold: Joi.number().default(0),
   is_active: Joi.string().valid("Y", "N").default("Y"),
-});
+}).options({ abortEarly: false });
 
 const handleDBOperation = async (operation) => {
   const db = getDB();
@@ -56,7 +53,7 @@ const handleDBOperation = async (operation) => {
 };
 
 const ProductModel = {
-  createProduct: async (productData) =>
+  createProduct: async (productData, seller_id) =>
     handleDBOperation(async (collection) => {
       const { error, value } = COLLECTION_SCHEMA.validate(productData, {
         abortEarly: false,
@@ -70,7 +67,7 @@ const ProductModel = {
       const now = new Date();
       const validatedProduct = { ...value, createdAt: now, updatedAt: now };
 
-      const result = await collection.insertOne(validatedProduct);
+      const result = await collection.insertOne(validatedProduct, seller_id);
       return { ...validatedProduct, _id: result.insertedId };
     }),
 
