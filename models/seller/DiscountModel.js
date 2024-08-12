@@ -83,7 +83,6 @@ const DiscountModel = {
 
   async getDiscountById(id) {
     const db = await getDB();
-    console.log(id);
     return db.collection(COLLECTION_NAME).findOne({ _id: new ObjectId(id) });
   },
 

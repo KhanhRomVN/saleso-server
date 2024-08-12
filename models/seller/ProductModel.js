@@ -15,7 +15,6 @@ const COLLECTION_SCHEMA = Joi.object({
   price: Joi.number().min(0),
   countryOfOrigin: Joi.string().required(),
   brand: Joi.string(),
-  isHandmade: Joi.boolean().valid(true, false).required(),
   stock: Joi.number().min(0),
   categories: Joi.array().items(Joi.string()).required(),
   upcoming_discounts: Joi.array().items(Joi.string()),
@@ -23,12 +22,14 @@ const COLLECTION_SCHEMA = Joi.object({
   expired_discounts: Joi.array().items(Joi.string()),
   attributes_name: Joi.string(),
   attributes: Joi.array()
-  .items(
-    Joi.object({
-    attributes_value: Joi.string().required(),
-    attributes_quantity: Joi.number().required(),
-    attributes_price: Joi.number().required(),
-  })).min(2),
+    .items(
+      Joi.object({
+        attributes_value: Joi.string().required(),
+        attributes_quantity: Joi.number().required(),
+        attributes_price: Joi.number().required(),
+      })
+    )
+    .min(2),
   details: Joi.array()
     .items(
       Joi.object({
@@ -65,10 +66,15 @@ const ProductModel = {
       }
 
       const now = new Date();
-      const validatedProduct = { ...value, createdAt: now, updatedAt: now };
+      const validatedProduct = {
+        ...value,
+        seller_id, // Add seller_id to the validated product
+        createdAt: now,
+        updatedAt: now,
+      };
 
-      const result = await collection.insertOne(validatedProduct, seller_id);
-      return { ...validatedProduct, _id: result.insertedId };
+      await collection.insertOne(validatedProduct);
+      return { message: "Create Product Successfully" };
     }),
 
   getProductByProdId: async (product_id) =>
@@ -348,7 +354,6 @@ const ProductModel = {
         price: product.price,
         categories: product.categories,
         brand: product.brand,
-        isHandmade: product.isHandmade,
         countryOfOrigin: product.countryOfOrigin,
         attributes: product.attributes,
         commonAttributes: product.commonAttributes,

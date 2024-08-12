@@ -87,19 +87,23 @@ const clearProductCache = async (productId) => {
 };
 
 const ProductController = {
-  createProduct: async (req, res) => {
-    try {
-      const newProduct = await ProductModel.createProduct(
-        req.body,
-        req.user._id.toString()
+  createProduct: (req, res) =>
+    handleRequest(req, res, async (req) => {
+      const categoryNames = req.body.categories.map(
+        (category) => category.name
       );
-      await ProductModel.syncProductToES(newProduct._id);
-      res.status(201).json(newProduct);
-    } catch (error) {
-      console.error("Error creating product:", error);
-      res.status(500).json({ error: "Internal server error" });
-    }
-  },
+      const productData = {
+        ...req.body,
+        categories: categoryNames,
+        upcoming_discounts: [],
+        ongoing_discounts: [],
+        expired_discounts: [],
+      };
+
+      await ProductModel.createProduct(productData, req.user._id.toString());
+      // await ProductModel.syncProductToES(newProduct._id);
+      return { message: "Create Product Successfully" };
+    }),
 
   getProductById: (req, res) =>
     handleRequest(req, res, async (req) => {
@@ -316,7 +320,6 @@ const ProductController = {
           sortByPrice,
           countryOfOrigin,
           brand,
-          isHandmade,
           units_sold,
           sortByUnitsSold,
           attributes,
@@ -360,11 +363,6 @@ const ProductController = {
         // Filter by brand
         if (brand) {
           query.bool.filter.push({ term: { brand: brand } });
-        }
-
-        // Filter by isHandmade
-        if (isHandmade !== undefined) {
-          query.bool.filter.push({ term: { isHandmade: isHandmade } });
         }
 
         // Filter by units sold
