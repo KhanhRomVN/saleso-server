@@ -166,17 +166,44 @@ const ProductModel = {
       if (!ObjectId.isValid(product_id)) {
         throw new Error("Invalid product ID");
       }
+
+      // Validate updateData against schema
+      const { error, value } = COLLECTION_SCHEMA.validate(updateData, {
+        abortEarly: false,
+        stripUnknown: true, // Remove unknown fields
+      });
+
+      if (error) {
+        throw new Error(
+          `Validation error: ${error.details.map((d) => d.message).join(", ")}`
+        );
+      }
+
       const result = await collection.findOneAndUpdate(
         { _id: new ObjectId(product_id) },
-        { $set: { ...updateData, updatedAt: new Date() } },
-        { returnDocument: "after" }
+        {
+          $set: {
+            ...value,
+            updatedAt: new Date(),
+          },
+        },
+        {
+          returnDocument: "after",
+          upsert: false, // Ensure we're not creating a new document
+        }
       );
 
-      if (!result.value) {
+      if (!result) {
         throw new Error("Product not found or update failed");
       }
 
-      return result.value;
+      // Clear cache if you're using Redis
+      await redisClient.del(`product:${product_id}`);
+
+      // Sync updated product to Elasticsearch
+      await ProductModel.syncProductToES(product_id);
+
+      return result;
     }),
 
   deleteProduct: async (product_id) =>

@@ -456,19 +456,15 @@ const ProductController = {
       }
     }),
 
-  updateProduct: async (req, res) => {
-    try {
-      const updatedProduct = await ProductModel.updateProduct(
-        req.params.product_id,
-        req.body
-      );
-      await ProductModel.syncProductToES(updatedProduct._id);
-      res.json(updatedProduct);
-    } catch (error) {
-      console.error("Error updating product:", error);
-      res.status(500).json({ error: "Internal server error" });
-    }
-  },
+  updateProduct: async (req, res) =>
+    handleRequest(req, res, async (req) => {
+      await checkUserOwnership(req.params.product_id, req.user._id.toString());
+      const { _id, units_sold, discounts, reviews, seller_id, ...updateData } =
+        req.body;
+      console.log(updateData);
+      await ProductModel.updateProduct(req.params.product_id, updateData);
+      return { message: "Update product data successfully" };
+    }),
 
   deleteProduct: async (req, res) => {
     try {
