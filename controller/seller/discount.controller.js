@@ -25,6 +25,7 @@ const DiscountController = {
         discountData.startDate,
         discountData.endDate
       );
+      discountData.isActive = true;
       return await DiscountModel.createDiscount(discountData);
     }),
 
