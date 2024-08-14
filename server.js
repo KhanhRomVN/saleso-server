@@ -71,7 +71,7 @@ app.use(errorHandler);
 //* Start Server
 const PORT = process.env.PORT || 8080;
 
-Promise.all([connectDB(), connectRedis(), connectElasticsearch()])
+Promise.all([connectDB(), connectRedis()])
   .then(() => {
     server.listen(PORT, () => {
       console.log(`Server is running on port: ${PORT}`);

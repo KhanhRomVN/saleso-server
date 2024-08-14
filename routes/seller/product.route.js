@@ -1,26 +1,7 @@
 const express = require("express");
 const { ProductController } = require("../../controller/index");
 const { authSellerToken } = require("../../middleware/authToken");
-const { redisClient } = require("../../config/redisClient");
 const router = express.Router();
-
-const cacheMiddleware = (duration) => async (req, res, next) => {
-  const key = `product:${req.originalUrl}`;
-  try {
-    const cachedData = await redisClient.get(key);
-    if (cachedData) return res.json(JSON.parse(cachedData));
-
-    res.sendResponse = res.json;
-    res.json = (body) => {
-      redisClient.setEx(key, duration, JSON.stringify(body));
-      res.sendResponse(body);
-    };
-    next();
-  } catch (error) {
-    console.error("Redis cache error:", error);
-    next();
-  }
-};
 
 const routes = [
   {
@@ -69,11 +50,11 @@ const routes = [
     path: "/by-categories",
     handler: ProductController.getProductsByCategories,
   },
-  {
-    method: "post",
-    path: "/filter",
-    handler: ProductController.filterProducts,
-  },
+  // {
+  //   method: "post",
+  //   path: "/filter",
+  //   handler: ProductController.filterProducts,
+  // },
   {
     method: "put",
     path: "/update/:product_id",

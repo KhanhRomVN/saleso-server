@@ -4,9 +4,9 @@ const {
   ReviewModel,
 } = require("../../models/index");
 const logger = require("../../config/logger");
-const { redisClient } = require("../../config/redisClient");
-const { client } = require("../../config/elasticsearchClient");
-const { searchProducts } = require("../../services/productSearch");
+// const { redisClient } = require("../../config/redisClient");
+// const { client } = require("../../config/elasticsearchClient");
+// const { searchProducts } = require("../../services/productSearch");
 
 const createDescriptionDiscount = (discount) => {
   if (!discount) return null;
@@ -23,35 +23,6 @@ const createDescriptionDiscount = (discount) => {
     default:
       return "Invalid discount type";
   }
-};
-
-const processFlashSaleProducts = async (products) => {
-  const processedProducts = await Promise.all(
-    products.map(async (product) => {
-      const rating = await ReviewModel.getAverageRatingForProduct(product._id);
-      return {
-        _id: product._id,
-        name: product.name,
-        price:
-          product.price ||
-          (product.attributes
-            ? Math.min(
-                ...Object.values(product.attributes).flatMap((attr) =>
-                  attr.map((item) => parseFloat(item.price))
-                )
-              )
-            : null),
-        images: product.images,
-        flashSaleDiscount: product.flashSaleDiscount
-          ? product.flashSaleDiscount.value
-          : null,
-        averageRating: rating ? rating.averageRating : null,
-        totalReviews: rating ? rating.totalReviews : null,
-      };
-    })
-  );
-
-  return processedProducts;
 };
 
 const handleRequest = async (req, res, operation) => {
@@ -79,11 +50,6 @@ const checkUserOwnership = async (product_id, seller_id) => {
     throw error;
   }
   return product;
-};
-
-const clearProductCache = async (productId) => {
-  const keys = await redisClient.keys(`product:*${productId}*`);
-  if (keys.length > 0) await redisClient.del(keys);
 };
 
 const ProductController = {
@@ -232,8 +198,26 @@ const ProductController = {
 
   getFlashSaleProducts: (req, res) =>
     handleRequest(req, res, async (req) => {
-      const products = await ProductModel.getFlashSaleProduct();
-      return processFlashSaleProducts(products);
+      const flashSaleProducts = await ProductModel.getFlashSaleProduct();
+
+      const refinedProducts = flashSaleProducts.map((product) => ({
+        _id: product._id,
+        name: product.name,
+        image: product.images[0],
+        price:
+          product.price ||
+          (product.attributes
+            ? Math.min(
+                ...product.attributes.map((attr) =>
+                  parseFloat(attr.attributes_price)
+                )
+              )
+            : null),
+        seller_id: product.seller_id,
+        discount_value: product.discount_value,
+      }));
+
+      return refinedProducts;
     }),
 
   getTopSellingProducts: (req, res) =>
@@ -311,157 +295,156 @@ const ProductController = {
       return productsByCategory;
     }),
 
-  filterProducts: async (req, res) =>
-    handleRequest(req, res, async (req) => {
-      try {
-        const {
-          name,
-          price,
-          sortByPrice,
-          countryOfOrigin,
-          brand,
-          units_sold,
-          sortByUnitsSold,
-          attributes,
-          categories,
-        } = req.body;
+  // filterProducts: async (req, res) =>
+  //   handleRequest(req, res, async (req) => {
+  //     try {
+  //       const {
+  //         name,
+  //         price,
+  //         sortByPrice,
+  //         countryOfOrigin,
+  //         brand,
+  //         units_sold,
+  //         sortByUnitsSold,
+  //         attributes,
+  //         categories,
+  //       } = req.body;
 
-        let query = {
-          bool: {
-            must: [],
-            filter: [],
-          },
-        };
+  //       let query = {
+  //         bool: {
+  //           must: [],
+  //           filter: [],
+  //         },
+  //       };
 
-        // Filter by name
-        if (name) {
-          query.bool.must.push({
-            match: {
-              name: {
-                query: name,
-                fuzziness: "AUTO",
-              },
-            },
-          });
-        }
+  //       // Filter by name
+  //       if (name) {
+  //         query.bool.must.push({
+  //           match: {
+  //             name: {
+  //               query: name,
+  //               fuzziness: "AUTO",
+  //             },
+  //           },
+  //         });
+  //       }
 
-        // Filter by price
-        if (price && (price.min !== undefined || price.max !== undefined)) {
-          const priceRange = {};
-          if (price.min !== undefined) priceRange.gte = price.min;
-          if (price.max !== undefined) priceRange.lte = price.max;
-          query.bool.filter.push({ range: { price: priceRange } });
-        }
+  //       // Filter by price
+  //       if (price && (price.min !== undefined || price.max !== undefined)) {
+  //         const priceRange = {};
+  //         if (price.min !== undefined) priceRange.gte = price.min;
+  //         if (price.max !== undefined) priceRange.lte = price.max;
+  //         query.bool.filter.push({ range: { price: priceRange } });
+  //       }
 
-        // Filter by country of origin
-        if (countryOfOrigin) {
-          query.bool.filter.push({
-            term: { countryOfOrigin: countryOfOrigin },
-          });
-        }
+  //       // Filter by country of origin
+  //       if (countryOfOrigin) {
+  //         query.bool.filter.push({
+  //           term: { countryOfOrigin: countryOfOrigin },
+  //         });
+  //       }
 
-        // Filter by brand
-        if (brand) {
-          query.bool.filter.push({ term: { brand: brand } });
-        }
+  //       // Filter by brand
+  //       if (brand) {
+  //         query.bool.filter.push({ term: { brand: brand } });
+  //       }
 
-        // Filter by units sold
-        if (
-          units_sold &&
-          (units_sold.min !== undefined || units_sold.max !== undefined)
-        ) {
-          const unitsRange = {};
-          if (units_sold.min !== undefined) unitsRange.gte = units_sold.min;
-          if (units_sold.max !== undefined) unitsRange.lte = units_sold.max;
-          query.bool.filter.push({ range: { units_sold: unitsRange } });
-        }
+  //       // Filter by units sold
+  //       if (
+  //         units_sold &&
+  //         (units_sold.min !== undefined || units_sold.max !== undefined)
+  //       ) {
+  //         const unitsRange = {};
+  //         if (units_sold.min !== undefined) unitsRange.gte = units_sold.min;
+  //         if (units_sold.max !== undefined) unitsRange.lte = units_sold.max;
+  //         query.bool.filter.push({ range: { units_sold: unitsRange } });
+  //       }
 
-        // Filter by attributes
-        if (attributes) {
-          if (Array.isArray(attributes)) {
-            // Case: ["color"]
-            attributes.forEach((attr) => {
-              query.bool.filter.push({
-                nested: {
-                  path: "attributes",
-                  query: {
-                    bool: {
-                      must: [{ exists: { field: `attributes.${attr}` } }],
-                    },
-                  },
-                },
-              });
-            });
-          } else if (typeof attributes === "object") {
-            // Case: { "color": [{ "value": "red" }] }
-            Object.entries(attributes).forEach(([key, values]) => {
-              if (Array.isArray(values)) {
-                values.forEach((value) => {
-                  query.bool.filter.push({
-                    nested: {
-                      path: "attributes",
-                      query: {
-                        bool: {
-                          must: [
-                            { match: { [`attributes.${key}`]: value.value } },
-                          ],
-                        },
-                      },
-                    },
-                  });
-                });
-              }
-            });
-          }
-        }
+  //       // Filter by attributes
+  //       if (attributes) {
+  //         if (Array.isArray(attributes)) {
+  //           // Case: ["color"]
+  //           attributes.forEach((attr) => {
+  //             query.bool.filter.push({
+  //               nested: {
+  //                 path: "attributes",
+  //                 query: {
+  //                   bool: {
+  //                     must: [{ exists: { field: `attributes.${attr}` } }],
+  //                   },
+  //                 },
+  //               },
+  //             });
+  //           });
+  //         } else if (typeof attributes === "object") {
+  //           // Case: { "color": [{ "value": "red" }] }
+  //           Object.entries(attributes).forEach(([key, values]) => {
+  //             if (Array.isArray(values)) {
+  //               values.forEach((value) => {
+  //                 query.bool.filter.push({
+  //                   nested: {
+  //                     path: "attributes",
+  //                     query: {
+  //                       bool: {
+  //                         must: [
+  //                           { match: { [`attributes.${key}`]: value.value } },
+  //                         ],
+  //                       },
+  //                     },
+  //                   },
+  //                 });
+  //               });
+  //             }
+  //           });
+  //         }
+  //       }
 
-        // Filter by categories
-        if (categories && Array.isArray(categories)) {
-          query.bool.filter.push({
-            terms: { categories: categories },
-          });
-        }
+  //       // Filter by categories
+  //       if (categories && Array.isArray(categories)) {
+  //         query.bool.filter.push({
+  //           terms: { categories: categories },
+  //         });
+  //       }
 
-        // Sorting
-        let sort = [];
-        if (sortByPrice) {
-          sort.push({ price: { order: sortByPrice } });
-        }
-        if (sortByUnitsSold) {
-          sort.push({ units_sold: { order: sortByUnitsSold } });
-        }
+  //       // Sorting
+  //       let sort = [];
+  //       if (sortByPrice) {
+  //         sort.push({ price: { order: sortByPrice } });
+  //       }
+  //       if (sortByUnitsSold) {
+  //         sort.push({ units_sold: { order: sortByUnitsSold } });
+  //       }
 
-        // Perform the search
-        const result = await client.search({
-          index: "products",
-          body: {
-            query: query,
-            sort: sort,
-          },
-        });
+  //       // Perform the search
+  //       const result = await client.search({
+  //         index: "products",
+  //         body: {
+  //           query: query,
+  //           sort: sort,
+  //         },
+  //       });
 
-        // Process and return the results
-        const products = result.hits.hits.map((hit) => ({
-          _id: hit._id,
-          ...hit._source,
-        }));
+  //       // Process and return the results
+  //       const products = result.hits.hits.map((hit) => ({
+  //         _id: hit._id,
+  //         ...hit._source,
+  //       }));
 
-        res.json({
-          total: result.hits.total.value,
-          products: products,
-        });
-      } catch (error) {
-        console.error("Error filtering products:", error);
-        res.status(500).json({ error: "Internal server error" });
-      }
-    }),
+  //       res.json({
+  //         total: result.hits.total.value,
+  //         products: products,
+  //       });
+  //     } catch (error) {
+  //       console.error("Error filtering products:", error);
+  //       res.status(500).json({ error: "Internal server error" });
+  //     }
+  //   }),
 
   updateProduct: async (req, res) =>
     handleRequest(req, res, async (req) => {
       await checkUserOwnership(req.params.product_id, req.user._id.toString());
       const { _id, units_sold, discounts, reviews, seller_id, ...updateData } =
         req.body;
-      console.log(updateData);
       await ProductModel.updateProduct(req.params.product_id, updateData);
       return { message: "Update product data successfully" };
     }),
@@ -469,10 +452,6 @@ const ProductController = {
   deleteProduct: async (req, res) => {
     try {
       await ProductModel.deleteProduct(req.params.product_id);
-      await client.delete({
-        index: "products",
-        id: req.params.product_id,
-      });
       res.json({ message: "Product deleted successfully" });
     } catch (error) {
       console.error("Error deleting product:", error);

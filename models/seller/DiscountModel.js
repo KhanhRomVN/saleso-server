@@ -1,7 +1,6 @@
 const { getDB } = require("../../config/mongoDB");
 const Joi = require("joi");
 const { ObjectId } = require("mongodb");
-const cron = require("node-cron");
 
 const COLLECTION_NAME = "discounts";
 const COLLECTION_SCHEMA = Joi.object({
@@ -89,7 +88,6 @@ const DiscountModel = {
   async getDiscountsByIds(ids) {
     const db = await getDB();
     try {
-      // Convert string IDs to ObjectId
       const objectIds = ids.map((id) => new ObjectId(id));
 
       // Fetch discounts from the database

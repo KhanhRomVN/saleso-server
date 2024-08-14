@@ -307,31 +307,40 @@ const ProductModel = {
 
   getFlashSaleProduct: async () =>
     handleDBOperation(async (collection) => {
-      const now = new Date();
-      const flashSaleProducts = await collection
+      // const now = new Date();
+      const products = await collection
         .find({
           ongoing_discounts: { $exists: true, $ne: [] },
           is_active: "Y",
         })
         .toArray();
 
-      const productsWithDiscounts = await Promise.all(
-        flashSaleProducts.map(async (product) => {
-          const discounts = await DiscountModel.getDiscountsByIds(
-            product.ongoing_discounts
-          );
-          const flashSaleDiscount = discounts.find(
-            (d) =>
-              d.type === "flash-sale" && d.startDate <= now && d.endDate > now
-          );
-          if (flashSaleDiscount) {
-            return { ...product, flashSaleDiscount };
-          }
-          return null;
-        })
-      );
+      const flashSaleProducts = [];
 
-      return productsWithDiscounts.filter(Boolean);
+      for (const product of products) {
+        const discounts = await Promise.all(
+          product.ongoing_discounts.map((id) =>
+            DiscountModel.getDiscountById(id)
+          )
+        );
+
+        const flashSaleDiscounts = discounts.filter(
+          (d) => d.type === "flash-sale"
+        );
+
+        if (flashSaleDiscounts.length > 0) {
+          const maxFlashSaleDiscount = flashSaleDiscounts.reduce(
+            (max, discount) => (discount.value > max.value ? discount : max)
+          );
+
+          flashSaleProducts.push({
+            ...product,
+            discount_value: maxFlashSaleDiscount.value,
+          });
+        }
+      }
+
+      return flashSaleProducts;
     }),
 
   getTopSellProduct: async (limit = 10) =>
