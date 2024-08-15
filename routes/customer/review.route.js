@@ -11,6 +11,12 @@ const routes = [
     handler: ReviewController.createReview,
   },
   {
+    method: "post",
+    path: "/reply/:review_id",
+    middleware: [authCustomerToken],
+    handler: ReviewController.replyReview,
+  },
+  {
     method: "get",
     path: "/:review_id",
     handler: ReviewController.getReviewById,
@@ -22,15 +28,9 @@ const routes = [
   },
   {
     method: "get",
-    path: "/by-user/:user_id",
+    path: "/by-customer/:customer_id",
     middleware: [authCustomerToken],
-    handler: ReviewController.getReviewsByUserId,
-  },
-  {
-    method: "put",
-    path: "/update/:review_id",
-    middleware: [authCustomerToken],
-    handler: ReviewController.updateReview,
+    handler: ReviewController.getReviewsByCustomerId,
   },
   {
     method: "delete",
@@ -40,13 +40,13 @@ const routes = [
   },
   {
     method: "post",
-    path: "/:review_id/like",
+    path: "/like/:review_id",
     middleware: [authCustomerToken],
     handler: ReviewController.likeReview,
   },
   {
     method: "post",
-    path: "/:review_id/unlike",
+    path: "/unlike/:review_id",
     middleware: [authCustomerToken],
     handler: ReviewController.unlikeReview,
   },

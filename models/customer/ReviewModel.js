@@ -4,14 +4,14 @@ const { ObjectId } = require("mongodb");
 
 const COLLECTION_NAME = "reviews";
 const COLLECTION_SCHEMA = Joi.object({
-  user_id: Joi.string().required(),
+  customer_id: Joi.string().required(),
+  username: Joi.string().required(),
   product_id: Joi.string().required(),
   rating: Joi.number().min(1).max(5).required(),
-  title: Joi.string().required(),
-  content: Joi.string().required(),
-  likes: Joi.number().default(0),
-  helpful_count: Joi.number().default(0),
+  comment: Joi.string().required(),
   images: Joi.array().items(Joi.string()),
+  likes: Joi.array().items(Joi.string()),
+  reply: Joi.array().items(Joi.string()),
   verified_purchase: Joi.boolean().default(false),
 });
 
@@ -28,111 +28,78 @@ const handleDBOperation = async (operation) => {
 const ReviewModel = {
   createReview: async (reviewData) =>
     handleDBOperation(async (collection) => {
-      const { error, value } = COLLECTION_SCHEMA.validate(reviewData, {
-        abortEarly: false,
-      });
-      if (error) {
-        throw new Error(
-          `Validation error: ${error.details.map((d) => d.message).join(", ")}`
-        );
-      }
-
-      const now = new Date();
-      const validatedReview = { ...value, createdAt: now, updatedAt: now };
-
-      const result = await collection.insertOne(validatedReview);
-      return { ...validatedReview, _id: result.insertedId };
+      const { error } = COLLECTION_SCHEMA.validate(reviewData);
+      if (error) throw new Error(error.details[0].message);
+      await collection.insertOne(reviewData);
     }),
 
-  getReviewById: async (review_id) =>
+  getReviewById: async (reviewId) =>
     handleDBOperation(async (collection) => {
-      if (!ObjectId.isValid(review_id)) throw new Error("Invalid review ID");
-      return await collection.findOne({ _id: new ObjectId(review_id) });
+      if (!ObjectId.isValid(reviewId)) throw new Error("Invalid review ID");
+      return await collection.findOne({ _id: new ObjectId(reviewId) });
     }),
 
-  getReviewsByProductId: async (product_id) =>
+  getReviewsByProductId: async (productId) =>
     handleDBOperation(async (collection) => {
-      if (!ObjectId.isValid(product_id)) throw new Error("Invalid product ID");
-      return await collection
-        .find({ product_id: product_id })
-        .sort({ createdAt: -1 })
-        .toArray();
+      return await collection.find({ product_id: productId }).toArray();
     }),
 
-  getReviewsByUserId: async (user_id) =>
+  getReviewsByCustomerId: async (customer_id) =>
     handleDBOperation(async (collection) => {
-      if (!ObjectId.isValid(user_id)) throw new Error("Invalid user ID");
-      return await collection
-        .find({ user_id: user_id })
-        .sort({ createdAt: -1 })
-        .toArray();
+      return await collection.find({ customer_id: customer_id }).toArray();
     }),
 
-  updateReview: async (review_id, user_id, updateData) =>
+  replyReview: async (review_id, replyData) =>
     handleDBOperation(async (collection) => {
       if (!ObjectId.isValid(review_id)) throw new Error("Invalid review ID");
 
-      const result = await collection.findOneAndUpdate(
-        { _id: new ObjectId(review_id), user_id: user_id },
-        { $set: { ...updateData, updatedAt: new Date() } },
+      const { error } = COLLECTION_SCHEMA.validate(replyData);
+      if (error) throw new Error(error.details[0].message);
+
+      const result = await collection.insertOne(replyData);
+      const newReplyId = result.insertedId;
+
+      const updateResult = await collection.findOneAndUpdate(
+        { _id: new ObjectId(review_id) },
+        {
+          $push: {
+            reply: newReplyId.toString(),
+          },
+        },
         { returnDocument: "after" }
       );
-
-      if (!result.value) {
-        throw new Error("Review not found or update not authorized");
-      }
-
-      return result.value;
     }),
 
-  deleteReview: async (review_id, user_id) =>
+  deleteReview: async (reviewId) =>
     handleDBOperation(async (collection) => {
-      if (!ObjectId.isValid(review_id)) throw new Error("Invalid review ID");
-
+      if (!ObjectId.isValid(reviewId)) throw new Error("Invalid review ID");
       const result = await collection.deleteOne({
-        _id: new ObjectId(review_id),
-        user_id: user_id,
+        _id: new ObjectId(reviewId),
       });
-
-      if (result.deletedCount === 0) {
-        throw new Error("Review not found or delete not authorized");
-      }
-
-      return result;
+      if (result.deletedCount === 0) throw new Error("Review not found");
+      return { message: "Review deleted successfully" };
     }),
 
-  likeReview: async (review_id, user_id) =>
+  likeReview: async (review_id, customer_id) =>
     handleDBOperation(async (collection) => {
       if (!ObjectId.isValid(review_id)) throw new Error("Invalid review ID");
-
-      const result = await collection.findOneAndUpdate(
+      const result = await collection.updateOne(
         { _id: new ObjectId(review_id) },
-        { $inc: { likes: 1 }, $addToSet: { likedBy: user_id } },
-        { returnDocument: "after" }
+        { $push: { likes: customer_id } }
       );
-
-      if (!result.value) {
-        throw new Error("Review not found");
-      }
-
-      return result.value;
+      if (result.modifiedCount === 0) throw new Error("Review not found");
+      return { message: "Review liked successfully" };
     }),
 
-  unlikeReview: async (review_id, user_id) =>
+  unlikeReview: async (review_id, customer_id) =>
     handleDBOperation(async (collection) => {
       if (!ObjectId.isValid(review_id)) throw new Error("Invalid review ID");
-
-      const result = await collection.findOneAndUpdate(
+      const result = await collection.updateOne(
         { _id: new ObjectId(review_id) },
-        { $inc: { likes: -1 }, $pull: { likedBy: user_id } },
-        { returnDocument: "after" }
+        { $pull: { likes: customer_id } }
       );
-
-      if (!result.value) {
-        throw new Error("Review not found");
-      }
-
-      return result.value;
+      if (result.modifiedCount === 0) throw new Error("Review not found");
+      return { message: "Review unliked successfully" };
     }),
 
   getAverageRatingForProduct: async (product_id) =>
@@ -202,7 +169,6 @@ const ReviewModel = {
         };
       }
 
-      // Đảm bảo rằng tất cả các rating từ 1-5 đều có trong kết quả
       const fullRatingDistribution = [1, 2, 3, 4, 5].map((rating) => {
         const found = result[0].ratingDistribution.find(
           (r) => r.rating === rating
