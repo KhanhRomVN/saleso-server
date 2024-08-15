@@ -81,17 +81,20 @@ const ProductController = {
         return res.status(404).json({ message: "Product not found" });
       }
 
+      let max_discount = 0;
       const discounts = await Promise.all(
         product.ongoing_discounts.map(async (discountId) => {
           const discount = await DiscountModel.getDiscountById(discountId);
           switch (discount.type) {
             case "percentage":
+              max_discount = Math.max(max_discount, discount.value);
               return `Discount ${discount.value}%`;
             case "fixed":
               return `Discount -${discount.value}$`;
             case "buy_x_get_y":
               return `Buy ${discount.value.buyQuantity} Get ${discount.value.getFreeQuantity}`;
             case "flash-sale":
+              max_discount = Math.max(max_discount, discount.value);
               return `Flashsale ${discount.value}%`;
             default:
               return "";
@@ -115,6 +118,7 @@ const ProductController = {
 
       const response = {
         ...refinedProduct,
+        max_discount,
         discounts,
         reviews,
       };
