@@ -3,112 +3,93 @@ const { ObjectId } = require("mongodb");
 const Joi = require("joi");
 
 const COLLECTION_NAME = "carts";
-const COLLECTION_SCHEMA = Joi.object({
+
+const CART_ITEM_SCHEMA = Joi.object({
+  product_id: Joi.string().required(),
+  quantity: Joi.number().integer().min(1).required(),
+  selected_attributes_value: Joi.string(),
+});
+
+const CART_SCHEMA = Joi.object({
   customer_id: Joi.string().required(),
-  items: Joi.array()
-    .items(
-      Joi.object({
-        productId: Joi.string().required(),
-        quantity: Joi.number().integer().min(1).required(),
-      })
-    )
-    .required(),
+  items: Joi.array().items(CART_ITEM_SCHEMA),
   createdAt: Joi.date().default(Date.now),
   updatedAt: Joi.date().default(Date.now),
 }).options({ abortEarly: false });
 
+const handleDBOperation = async (operation) => {
+  const db = getDB();
+  try {
+    return await operation(db.collection(COLLECTION_NAME));
+  } catch (error) {
+    console.error(`Error in ${operation.name}: `, error);
+    throw error;
+  }
+};
+
 const CartModel = {
-  async getCart(customer_id) {
-    const db = await getDB();
-    return db
-      .collection(COLLECTION_NAME)
-      .findOne({ customer_id: new ObjectId(customer_id) });
+  getCart: async (customer_id) => {
+    return handleDBOperation(async (collection) => {
+      const cart = await collection.findOne({
+        customer_id: customer_id,
+      });
+      return cart || { customer_id, items: [] };
+    });
   },
 
-  async addItem(customer_id, productId, quantity) {
-    const db = await getDB();
-    const result = await db.collection(COLLECTION_NAME).updateOne(
-      { customer_id: new ObjectId(customer_id) },
-      {
-        $push: {
-          items: {
-            productId: new ObjectId(productId),
-            quantity: quantity,
-          },
+  addItem: async (customer_id, cartData) => {
+    return handleDBOperation(async (collection) => {
+      const { error } = CART_ITEM_SCHEMA.validate(cartData);
+      if (error) throw new Error(error.details[0].message);
+
+      await collection.updateOne(
+        { customer_id: customer_id },
+        {
+          $push: { items: cartData },
+          $setOnInsert: { createdAt: new Date() },
+          $set: { updatedAt: new Date() },
         },
-        $setOnInsert: { createdAt: new Date() },
-        $set: { updatedAt: new Date() },
-      },
-      { upsert: true }
-    );
+        { upsert: true }
+      );
+    });
+  },
 
-    const { value: updatedCart } = await db
-      .collection(COLLECTION_NAME)
-      .findOneAndUpdate(
+  removeItem: async (customer_id, product_id) => {
+    return handleDBOperation(async (collection) => {
+      await collection.updateOne(
         { customer_id: new ObjectId(customer_id) },
-        { $set: { updatedAt: new Date() } },
-        { returnDocument: "after" }
+        {
+          $pull: { items: { product_id: new ObjectId(product_id) } },
+          $set: { updatedAt: new Date() },
+        }
       );
+    });
+  },
 
-    const { error } = COLLECTION_SCHEMA.validate(updatedCart);
-    if (error)
-      throw new Error(
-        `Cart validation error: ${error.details.map((d) => d.message).join(", ")}`
+  updateItemQuantity: async (customer_id, product_id, quantity) => {
+    return handleDBOperation(async (collection) => {
+      const { error } = CART_ITEM_SCHEMA.validate({ product_id, quantity });
+      if (error) throw new Error(error.details[0].message);
+
+      await collection.updateOne(
+        {
+          customer_id: customer_id,
+          "items.product_id": product_id,
+        },
+        {
+          $set: { "items.$.quantity": quantity, updatedAt: new Date() },
+        }
       );
-
-    return updatedCart;
+    });
   },
 
-  async updateItem(customer_id, productId, quantity) {
-    const db = await getDB();
-    const result = await db.collection(COLLECTION_NAME).updateOne(
-      {
-        customer_id: new ObjectId(customer_id),
-        "items.productId": new ObjectId(productId),
-      },
-      {
-        $set: { "items.$.quantity": quantity, updatedAt: new Date() },
-      }
-    );
-
-    if (result.matchedCount === 0) {
-      throw new Error("Item not found in cart");
-    }
-
-    return this.getCart(customer_id);
-  },
-
-  async removeItem(customer_id, productId) {
-    const db = await getDB();
-    const result = await db.collection(COLLECTION_NAME).updateOne(
-      { customer_id: new ObjectId(customer_id) },
-      {
-        $pull: { items: { productId: new ObjectId(productId) } },
-        $set: { updatedAt: new Date() },
-      }
-    );
-
-    if (result.modifiedCount === 0) {
-      throw new Error("Item not found in cart");
-    }
-
-    return this.getCart(customer_id);
-  },
-
-  async clearCart(customer_id) {
-    const db = await getDB();
-    const result = await db.collection(COLLECTION_NAME).updateOne(
-      { customer_id: new ObjectId(customer_id) },
-      {
-        $set: { items: [], updatedAt: new Date() },
-      }
-    );
-
-    if (result.matchedCount === 0) {
-      throw new Error("Cart not found");
-    }
-
-    return this.getCart(customer_id);
+  clearCart: async (customer_id) => {
+    return handleDBOperation(async (collection) => {
+      await collection.updateOne(
+        { customer_id: customer_id },
+        { $set: { items: [], updatedAt: new Date() } }
+      );
+    });
   },
 };
 

@@ -7,32 +7,37 @@ const routes = [
   {
     method: "get",
     path: "/",
+    middleware: [authCustomerToken],
     handler: CartController.getCart,
   },
   {
     method: "post",
-    path: "/add",
+    path: "/",
+    middleware: [authCustomerToken],
     handler: CartController.addItem,
   },
   {
-    method: "put",
-    path: "/update",
-    handler: CartController.updateItem,
-  },
-  {
     method: "delete",
-    path: "/remove/:productId",
+    path: "/:product_id",
+    middleware: [authCustomerToken],
     handler: CartController.removeItem,
   },
   {
+    method: "patch",
+    path: "/",
+    middleware: [authCustomerToken],
+    handler: CartController.updateItemQuantity,
+  },
+  {
     method: "delete",
-    path: "/clear",
+    path: "/",
+    middleware: [authCustomerToken],
     handler: CartController.clearCart,
   },
 ];
 
-routes.forEach(({ method, path, handler }) => {
-  router[method](path, authCustomerToken, handler);
+routes.forEach(({ method, path, middleware = [], handler }) => {
+  router[method](path, ...middleware, handler);
 });
 
 module.exports = router;

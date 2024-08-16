@@ -19,118 +19,72 @@ const CartController = {
       const customer_id = req.user._id.toString();
       const cart = await CartModel.getCart(customer_id);
 
-      if (!cart || !cart.items || cart.items.length === 0) {
-        return { ...cart, items: [] };
-      }
+      // Remove createdAt and updatedAt
+      const { createdAt, updatedAt, ...cartData } = cart;
 
-      const itemsWithDetails = await Promise.all(
+      // Process items
+      const processedItems = await Promise.all(
         cart.items.map(async (item) => {
-          try {
-            const product = await ProductModel.getProductByProdId(
-              item.productId
+          const product = await ProductModel.getProductByProdId(
+            item.product_id
+          );
+
+          let processedItem = {
+            product_id: product._id,
+            name: product.name,
+            image: product.images[0],
+            quantity: item.quantity,
+          };
+
+          if (product.attributes) {
+            // Product with attributes
+            const selectedAttribute = product.attributes.find(
+              (attr) => attr.attributes_value === item.selected_attributes_value
             );
 
-            if (!product) {
-              logger.warn(`Product not found for id: ${item.productId}`);
-              return null;
+            if (selectedAttribute) {
+              processedItem.stock = selectedAttribute.attributes_quantity;
+              processedItem.price = selectedAttribute.attributes_price;
+              processedItem.selected_attributes_value =
+                item.selected_attributes_value;
             }
-
-            let price;
-            let stock = 0;
-
-            if (product.attributes) {
-              const allPrices = [];
-              let totalStock = 0;
-
-              Object.values(product.attributes).forEach((attribute) => {
-                if (Array.isArray(attribute)) {
-                  attribute.forEach((variant) => {
-                    const variantPrice = parseFloat(variant.price);
-                    const variantQuantity = parseInt(variant.quantity);
-
-                    if (!isNaN(variantPrice)) {
-                      allPrices.push(variantPrice);
-                    }
-
-                    if (!isNaN(variantQuantity)) {
-                      totalStock += variantQuantity;
-                    }
-                  });
-                }
-              });
-
-              if (allPrices.length > 0) {
-                price = {
-                  min: Math.min(...allPrices),
-                  max: Math.max(...allPrices),
-                };
-              }
-
-              stock = totalStock;
-            } else if (typeof product.price === "number") {
-              price = product.price;
-            }
-
-            if (typeof product.stock === "number") {
-              stock = product.stock;
-            }
-
-            return {
-              ...item,
-              product: {
-                name: product.name,
-                price: price,
-                stock: stock,
-                image:
-                  product.images && product.images.length > 0
-                    ? product.images[0]
-                    : undefined,
-              },
-            };
-          } catch (error) {
-            logger.error(
-              `Error processing product for item: ${item.productId}`,
-              error
-            );
-            return null;
+          } else {
+            // Product without attributes
+            processedItem.stock = product.stock;
+            processedItem.price = product.price;
           }
+
+          return processedItem;
         })
       );
 
-      const validItems = itemsWithDetails.filter((item) => item !== null);
-
       return {
-        ...cart,
-        items: validItems,
+        ...cartData,
+        items: processedItems,
       };
     }),
 
   addItem: (req, res) =>
     handleRequest(req, res, async (req) => {
-      const { productId, quantity = 1 } = req.body;
       const customer_id = req.user._id.toString();
-      await CartModel.addItem(customer_id, productId, quantity);
+      await CartModel.addItem(customer_id, req.body);
       return { message: "Item added to cart successfully" };
-    }),
-
-  updateItem: (req, res) =>
-    handleRequest(req, res, async (req) => {
-      const { productId, quantity } = req.body;
-      const customer_id = req.user._id.toString();
-      if (quantity > 0) {
-        await CartModel.updateItem(customer_id, productId, quantity);
-      } else {
-        await CartModel.removeItem(customer_id, productId);
-      }
-      return { message: "Cart updated successfully" };
     }),
 
   removeItem: (req, res) =>
     handleRequest(req, res, async (req) => {
-      const { productId } = req.params;
+      const { product_id } = req.params;
       const customer_id = req.user._id.toString();
-      await CartModel.removeItem(customer_id, productId);
+      await CartModel.removeItem(customer_id, product_id);
       return { message: "Item removed from cart successfully" };
+    }),
+
+  updateItemQuantity: (req, res) =>
+    handleRequest(req, res, async (req) => {
+      const customer_id = req.user._id.toString();
+      const { product_id, quantity } = req.body;
+      await CartModel.updateItemQuantity(customer_id, product_id, quantity);
+      return { message: "Item quantity updated successfully" };
     }),
 
   clearCart: (req, res) =>

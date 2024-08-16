@@ -1,6 +1,7 @@
 const { getDB } = require("../../config/mongoDB");
 const Joi = require("joi");
 const { ObjectId } = require("mongodb");
+const { ProductModel } = require("../../models/index");
 
 const COLLECTION_NAME = "discounts";
 const COLLECTION_SCHEMA = Joi.object({

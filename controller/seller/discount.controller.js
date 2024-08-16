@@ -29,6 +29,26 @@ const DiscountController = {
       return await DiscountModel.createDiscount(discountData);
     }),
 
+  getDiscountByProductId: (req, res) =>
+    handleRequest(req, res, async (req) => {
+      const { product_id } = req.params;
+      const product = await ProductModel.getProductByProdId(product_id);
+      if (!product) {
+        throw new Error("Product not found");
+      }
+
+      const ongoingDiscountIds = product.ongoing_discounts || [];
+
+      const ongoingDiscounts = await Promise.all(
+        ongoingDiscountIds.map(async (discountId) => {
+          const discount = await DiscountModel.getDiscountById(discountId);
+          return discount;
+        })
+      );
+
+      return ongoingDiscounts.filter((discount) => discount !== null);
+    }),
+
   getAllDiscounts: (req, res) =>
     handleRequest(req, res, async (req) => {
       return await DiscountModel.getAllDiscounts(req.user._id.toString());
