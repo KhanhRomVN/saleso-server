@@ -7,27 +7,31 @@ const routes = [
   {
     method: "get",
     path: "/",
+    middleware: [authCustomerToken],
     handler: WishlistController.getWishlist,
   },
   {
     method: "post",
-    path: "/add",
-    handler: WishlistController.addItem,
+    path: "/items/:product_id",
+    middleware: [authCustomerToken],
+    handler: WishlistController.addToWishlist,
   },
   {
     method: "delete",
-    path: "/remove/:productId",
-    handler: WishlistController.removeItem,
+    path: "/items/:product_id",
+    middleware: [authCustomerToken],
+    handler: WishlistController.removeFromWishlist,
   },
   {
     method: "delete",
-    path: "/clear",
+    path: "/",
+    middleware: [authCustomerToken],
     handler: WishlistController.clearWishlist,
   },
 ];
 
-routes.forEach(({ method, path, handler }) => {
-  router[method](path, authCustomerToken, handler);
+routes.forEach(({ method, path, middleware = [], handler }) => {
+  router[method](path, ...middleware, handler);
 });
 
 module.exports = router;

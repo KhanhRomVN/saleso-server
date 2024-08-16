@@ -16,31 +16,28 @@ const handleRequest = async (req, res, operation) => {
 const WishlistController = {
   getWishlist: (req, res) =>
     handleRequest(req, res, async (req) => {
-      const userId = req.user._id.toString();
-      return await WishlistModel.getWishlist(userId);
+      const customer_id = req.user._id.toString();
+      return await WishlistModel.getWishlist(customer_id);
     }),
 
-  addItem: (req, res) =>
+  addToWishlist: (req, res) =>
     handleRequest(req, res, async (req) => {
-      const { productId } = req.body;
-      const userId = req.user._id.toString();
-      await WishlistModel.addItem(userId, productId);
-      return { message: "Item added to wishlist successfully" };
+      const customer_id = req.user._id.toString();
+      const { product_id } = req.params;
+      return await WishlistModel.addToWishlist(customer_id, product_id);
     }),
 
-  removeItem: (req, res) =>
+  removeFromWishlist: (req, res) =>
     handleRequest(req, res, async (req) => {
-      const { productId } = req.params;
-      const userId = req.user._id.toString();
-      await WishlistModel.removeItem(userId, productId);
-      return { message: "Item removed from wishlist successfully" };
+      const customer_id = req.user._id.toString();
+      const { product_id } = req.params;
+      return await WishlistModel.removeFromWishlist(customer_id, product_id);
     }),
 
   clearWishlist: (req, res) =>
     handleRequest(req, res, async (req) => {
-      const userId = req.user._id.toString();
-      await WishlistModel.clearWishlist(userId);
-      return { message: "Wishlist cleared successfully" };
+      const customer_id = req.user._id.toString();
+      return await WishlistModel.clearWishlist(customer_id);
     }),
 };
 
