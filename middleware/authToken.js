@@ -41,9 +41,9 @@ const createAuthMiddleware = (roleCheck) => async (req, res, next) => {
 };
 
 module.exports = {
-  authToken: createAuthMiddleware(),
+  authToken: createAuthMiddleware("customer" || "seller"),
   authCustomerToken: createAuthMiddleware("customer"),
-  authSellerToken: createAuthMiddleware("seller" || "admin" || "employee"),
+  authSellerToken: createAuthMiddleware("seller"),
   authAdminToken: createAuthMiddleware("admin"),
-  authEmployeeToken: createAuthMiddleware("admin" || "employee"),
+  authEmployeeToken: createAuthMiddleware("employee"),
 };

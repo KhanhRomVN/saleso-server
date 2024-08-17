@@ -1,4 +1,4 @@
-const { UserModel, OTPModel } = require("../../models/index");
+const { UserModel, OTPModel, UserDetailModel } = require("../../models/index");
 const transporter = require("../../config/nodemailerConfig");
 const { CustomError } = require("../../middleware/errorHandler");
 const bcryptjs = require("bcryptjs");
@@ -140,7 +140,7 @@ const AuthController = {
 
       await UserModel.registerUser(email, role, userData);
       const user = await UserModel.getUserByEmail(email, role);
-      await userDetailModel.createUserDetail(user._id);
+      await UserDetailModel.createUserDetail(user._id, role);
       return { message: "User registered successfully" };
     });
   },

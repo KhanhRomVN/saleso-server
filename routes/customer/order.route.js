@@ -3,14 +3,41 @@ const { OrderController } = require("../../controller/index");
 const { authCustomerToken } = require("../../middleware/authToken");
 const router = express.Router();
 
-router.post("/", authCustomerToken, OrderController.getListOrder);
-router.post("/accepted", authCustomerToken, OrderController.getListAcceptOrder);
-router.post("/rejected", authCustomerToken, OrderController.getListRefuseOrder);
-router.post("/create", authCustomerToken, OrderController.createOrder);
-router.post(
-  "/cancel/:order_id",
-  authCustomerToken,
-  OrderController.cancelOrder
-);
+const routes = [
+  {
+    method: "post",
+    path: "/",
+    middleware: [authCustomerToken],
+    handler: OrderController.createOrder,
+  },
+  {
+    method: "get",
+    path: "/",
+    middleware: [authCustomerToken],
+    handler: OrderController.getOrder,
+  },
+  {
+    method: "get",
+    path: "/accept",
+    middleware: [authCustomerToken],
+    handler: OrderController.getAcceptOrder,
+  },
+  {
+    method: "get",
+    path: "/refuse",
+    middleware: [authCustomerToken],
+    handler: OrderController.getRefuseOrder,
+  },
+  {
+    method: "post",
+    path: "/cancel/order_id",
+    middleware: [authCustomerToken],
+    handler: OrderController.cancelOrder,
+  },
+];
+
+routes.forEach(({ method, path, middleware = [], handler }) => {
+  router[method](path, ...middleware, handler);
+});
 
 module.exports = router;

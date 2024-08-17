@@ -5,27 +5,28 @@ const router = express.Router();
 
 const routes = [
   {
-    method: "post",
-    path: "/get-user-data-by-username",
-    handler: UserController.getUserDataByUsername,
+    method: "get",
+    path: "/user-data",
+    middleware: [authToken],
+    handler: UserController.getUserDataById,
   },
   {
     method: "post",
-    path: "/update-username",
+    path: "/update/username",
     middleware: [authToken],
     handler: UserController.updateUsername,
   },
   {
     method: "post",
-    path: "/update-user-detail-field",
+    path: "/update/detail",
     middleware: [authToken],
     handler: UserController.updateUserDetailField,
   },
   {
     method: "post",
-    path: "/verify-email",
+    path: "/verify",
     middleware: [authToken],
-    handler: UserController.verifyEmail,
+    handler: UserController.verifyAccount,
   },
   {
     method: "post",

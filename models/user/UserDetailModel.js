@@ -3,13 +3,14 @@ const Joi = require("joi");
 
 const COLLECTION_NAME = "user_detail";
 const COLLECTION_SCHEMA = Joi.object({
-  user_id: Joi.string().required(),
+  customer_id: Joi.string(),
+  seller_id: Joi.string(),
   name: Joi.string().optional(),
   age: Joi.number().integer().min(0).optional(),
   gender: Joi.string().valid("male", "female", "other").optional(),
-  address: Joi.string().optional(),
-  about: Joi.string().optional(),
-  avatar: Joi.string().uri().optional(),
+  address: Joi.array().items(Joi.string()),
+  about: Joi.string(),
+  avatar_uri: Joi.string().uri(),
 }).options({ abortEarly: false });
 
 const UserDetailModel = {
@@ -22,25 +23,29 @@ const UserDetailModel = {
     }
   },
 
-  createUserDetail: async (user_id) => {
+  createUserDetail: async (user_id, role) => {
     const db = getDB();
     await db
       .collection(COLLECTION_NAME)
-      .insertOne({ user_id: user_id.toString() });
+      .insertOne({ [`${role}_id`]: user_id.toString() });
   },
 
-  getUserDetailByUserId: async (userId) => {
+  getUserDetailByUserId: async (user_id, role) => {
     const db = getDB();
-    return await db.collection(COLLECTION_NAME).findOne({ user_id: userId });
+    return await db
+      .collection(COLLECTION_NAME)
+      .findOne({ [`${role}_id`]: user_id });
   },
 
-  updateUserDetailField: async (user_id, updateData) => {
+  updateUserDetailField: async (user_id, updateData, role) => {
     const db = getDB();
+    UserDetailModel.validateUserDetail(updateData);
+
     await db
       .collection(COLLECTION_NAME)
       .updateOne(
-        { user_id },
-        { $set: updateData, $currentDate: { update_at: true } }
+        { [`${role}_id`]: user_id },
+        { $set: updateData, $currentDate: { updated_at: true } }
       );
   },
 };

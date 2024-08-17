@@ -142,21 +142,12 @@ const UserModel = {
     }
   },
 
-  updatePassword: async (user_id, currentPassword, newPassword) => {
+  updatePassword: async (user_id, newPassword, role) => {
     const db = getDB();
     try {
-      const user = await db
-        .collection("users")
-        .findOne({ _id: new ObjectId(user_id) });
-      if (!user) {
-        throw new Error("User not found");
-      }
-      if (!(await bcrypt.compare(currentPassword, user.password))) {
-        throw new Error("Incorrect current password");
-      }
       const hashedNewPassword = await bcrypt.hash(newPassword, saltRounds);
       await db
-        .collection("users")
+        .collection(role)
         .updateOne(
           { _id: new ObjectId(user_id) },
           { $set: { password: hashedNewPassword } }
@@ -181,11 +172,11 @@ const UserModel = {
     }
   },
 
-  updateUserField: async (user_id, updateData) => {
+  updateUserField: async (user_id, updateData, role) => {
     const db = getDB();
     try {
       return db
-        .collection("users")
+        .collection(role)
         .updateOne(
           { _id: new ObjectId(user_id) },
           { $set: updateData, $currentDate: { update_at: true } }
