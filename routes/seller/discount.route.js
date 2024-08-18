@@ -8,7 +8,7 @@ const routes = [
     method: "post",
     path: "/create",
     middleware: [authSellerToken],
-    handler: DiscountController.createDiscount,
+    handler: DiscountController.createDiscount, 
   },
   {
     method: "get",

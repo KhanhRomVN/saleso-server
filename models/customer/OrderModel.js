@@ -42,9 +42,16 @@ const OrderModel = {
     });
   },
 
-  getOrder: async (customer_id) => {
+  getOrder: async (id, role) => {
     return handleDBOperation(async (collection) => {
-      return await collection.find({ customer_id: customer_id }).toArray();
+      if (role === "customer") {
+        return await collection.find({ customer_id: id }).toArray();
+      } else {
+        // get list pending order from seller_id
+        return await collection
+          .find({ seller_id: id, order_status: "pending" })
+          .toArray();
+      }
     });
   },
 

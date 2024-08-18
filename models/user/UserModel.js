@@ -157,12 +157,12 @@ const UserModel = {
     }
   },
 
-  updateForgetPassword: async (user_id, newPassword) => {
+  updateForgetPassword: async (user_id, newPassword, role) => {
     const db = getDB();
     try {
       const hashedNewPassword = await bcrypt.hash(newPassword, saltRounds);
       await db
-        .collection("users")
+        .collection(role)
         .updateOne(
           { _id: new ObjectId(user_id) },
           { $set: { password: hashedNewPassword } }

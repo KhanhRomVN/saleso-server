@@ -30,13 +30,20 @@ const routes = [
   },
   {
     method: "post",
+    path: "/verify/new-email",
+    middleware: [authToken],
+    handler: UserController.verifyNewEmail,
+  },
+  {
+    method: "post",
     path: "/update-email",
     middleware: [authToken],
     handler: UserController.updateEmail,
   },
+
   {
     method: "post",
-    path: "/update-password",
+    path: "/update/password",
     middleware: [authToken],
     handler: UserController.updatePassword,
   },
@@ -48,7 +55,7 @@ const routes = [
   },
   {
     method: "post",
-    path: "/update-forget-password",
+    path: "/update/forget-password",
     middleware: [authToken],
     handler: UserController.updateForgetPassword,
   },

@@ -6,16 +6,13 @@ const COLLECTION_NAME = "invoices";
 const COLLECTION_SCHEMA = Joi.object({
   seller_id: Joi.string().required(),
   customer_id: Joi.string().required(),
-  email: Joi.string().required(),
-  username: Joi.string().required(),
   order_id: Joi.string().required(),
   issue_date: Joi.date().default(Date.now),
-  total_amount: Joi.number().min(0).required(),
-  payment_status: Joi.string().valid("unpaid", "paid").required(),
+  due_date: Joi.date().required(),
   invoice_status: Joi.string()
-    .valid("pending", "accepted", "refused")
+    .valid("progress", "paid", "return", "overdue")
     .required(),
-  currency: Joi.string().required(),
+  logs: Joi.array().items(Joi.string()).required(),
   created_at: Joi.date().default(Date.now),
   updated_at: Joi.date().default(Date.now),
 }).options({ abortEarly: false });
@@ -25,86 +22,51 @@ const validateInvoice = (invoiceData) => {
   if (error) throw error;
 };
 
-const addToInvoice = async (invoiceData) => {
+const handleDBOperation = async (operation) => {
   const db = getDB();
   try {
+    return await operation(db.collection(COLLECTION_NAME));
+  } catch (error) {
+    console.error(`Error in ${operation.name}: `, error);
+    throw error;
+  }
+};
+
+const InvoiceModel = {
+  createInvoice: async (invoiceData) => {
     validateInvoice(invoiceData);
-    const result = await db.collection(COLLECTION_NAME).insertOne(invoiceData);
-    return result.insertedId;
-  } catch (error) {
-    console.error("Error adding invoice:", error);
-    throw error;
-  }
+    return handleDBOperation(async (collection) => {
+      const result = await collection.insertOne(invoiceData);
+      return result.insertedId;
+    });
+  },
+
+  getInvoicesByStatus: async (seller_id, status) => {
+    return handleDBOperation(async (collection) => {
+      return await collection
+        .find({ seller_id, invoice_status: status })
+        .toArray();
+    });
+  },
+
+  getInvoiceById: async (invoice_id) => {
+    return handleDBOperation(async (collection) => {
+      return await collection.findOne({ _id: new ObjectId(invoice_id) });
+    });
+  },
+
+  updateInvoiceStatus: async (invoice_id, newStatus) => {
+    return handleDBOperation(async (collection) => {
+      const result = await collection.updateOne(
+        { _id: new ObjectId(invoice_id) },
+        { $set: { invoice_status: newStatus, updated_at: new Date() } }
+      );
+      if (result.modifiedCount === 0) {
+        throw new Error("Invoice not found or status not changed");
+      }
+      return { message: "Invoice status updated successfully" };
+    });
+  },
 };
 
-const getListInvoice = async (seller_id) => {
-  const db = getDB();
-  try {
-    return await db
-      .collection(COLLECTION_NAME)
-      .find({ seller_id: seller_id })
-      .toArray();
-  } catch (error) {
-    console.error("Error getting list of invoices:", error);
-    throw error;
-  }
-};
-
-const getInvoiceById = async (invoice_id) => {
-  const db = getDB();
-  try {
-    return await db
-      .collection(COLLECTION_NAME)
-      .findOne({ _id: new ObjectId(invoice_id) });
-  } catch (error) {
-    console.error("Error getting invoice by ID:", error);
-    throw error;
-  }
-};
-
-const getListInvoiceByStatus = async (seller_id, status) => {
-  const db = getDB();
-  console.log(seller_id);
-  console.log(status);
-  try {
-    return await db
-      .collection(COLLECTION_NAME)
-      .find({ seller_id: seller_id, invoice_status: status })
-      .toArray();
-  } catch (error) {
-    console.error(`Error getting list of ${status} invoices:`, error);
-    throw error;
-  }
-};
-
-const updateInvoiceStatus = async (
-  invoice_id,
-  new_invoice_status,
-  deliver_status
-) => {
-  const db = getDB();
-  try {
-    await db.collection(COLLECTION_NAME).findOneAndUpdate(
-      { _id: new ObjectId(invoice_id) },
-      {
-        $set: {
-          invoice_status: new_invoice_status,
-          deliver_status: deliver_status,
-          updated_at: new Date(),
-        },
-      },
-      { returnDocument: "after" }
-    );
-  } catch (error) {
-    console.error("Error updating invoice status:", error);
-    throw error;
-  }
-};
-
-module.exports = {
-  addToInvoice,
-  getListInvoice,
-  getInvoiceById,
-  getListInvoiceByStatus,
-  updateInvoiceStatus,
-};
+module.exports = InvoiceModel;

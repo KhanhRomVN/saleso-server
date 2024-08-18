@@ -24,7 +24,7 @@ const UserController = {
       const role = req.user.role;
       const user = await UserModel.getUserById(user_id, role);
       if (!user) {
-        throw new Error(`User with username <${username}> not found`);
+        return { message: `User with username <${username}> not found` };
       }
       const userData = {
         user_id: user._id.toString(),
@@ -99,11 +99,37 @@ const UserController = {
     });
   },
 
-  updateEmail: async (req, res) => {
+  verifyNewEmail: async (req, res) => {
     handleRequest(req, res, async (req) => {
-      const user_id = req.user._id;
       const role = req.user.role;
       const { newEmail } = req.body;
+
+      const otp = generateOTP();
+      await OTPModel.storeOTP(newEmail, otp, role);
+
+      await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: newEmail,
+        subject: "New Email OTP",
+        html: `<p>Your OTP code is: ${otp}</p>`,
+      });
+
+      logger.info(`OTP sent to email: ${newEmail}`);
+      return { message: "OTP sent to email" };
+    });
+  },
+
+  updateEmail: async (req, res) => {
+    handleRequest(req, res, async (req) => {
+      const { newEmail, otp } = req.body;
+      const user_id = req.user._id;
+      const role = req.user.role;
+
+      const validOTP = await OTPModel.verifyOTP(newEmail, otp, role);
+      if (!validOTP) {
+        return res.status(400).json({ error: "Invalid OTP" });
+      }
+
       await UserModel.updateUserField(user_id, { ["email"]: newEmail }, role);
       return { message: "Update Email SuccessFull!" };
     });
@@ -142,19 +168,16 @@ const UserController = {
 
   updateForgetPassword: async (req, res) => {
     handleRequest(req, res, async (req) => {
-      const { email, otp, newPassword } = req.body;
+      const { otp, newPassword } = req.body;
+      const user_id = req.user._id.toString();
       const role = req.user.role;
-      const validOTP = await OTPModel.verifyOTP(email, otp);
+      const email = req.user.email;
+      const validOTP = await OTPModel.verifyOTP(email, otp, role);
       if (!validOTP) {
         return res.status(400).json({ error: "Invalid OTP" });
       }
 
-      const user = await UserModel.getUserByEmail(email);
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
-      await UserModel.updateForgetPassword(user._id, newPassword);
+      await UserModel.updateForgetPassword(user_id, newPassword, role);
       return { message: "Password reset successfully!" };
     });
   },

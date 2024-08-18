@@ -13,16 +13,6 @@ const handleRequest = async (req, res, operation) => {
   }
 };
 
-const groupProductsBySeller = (products) => {
-  return products.reduce((acc, product) => {
-    if (!acc[product.seller_id]) {
-      acc[product.seller_id] = [];
-    }
-    acc[product.seller_id].push(product);
-    return acc;
-  }, {});
-};
-
 const OrderController = {
   createOrder: (req, res) =>
     handleRequest(req, res, async (req) => {
@@ -66,7 +56,23 @@ const OrderController = {
   getOrder: (req, res) =>
     handleRequest(req, res, async (req) => {
       const customer_id = req.user._id.toString();
-      return await OrderModel.getOrder(customer_id);
+      const role = req.user.role;
+      const orders = await OrderModel.getOrder(customer_id, role);
+
+      const ordersWithProductDetails = await Promise.all(
+        orders.map(async (order) => {
+          const product = await ProductModel.getProductByProdId(
+            order.product_id
+          );
+          return {
+            ...order,
+            name: product.name,
+            image: product.images[0] || null,
+          };
+        })
+      );
+
+      return ordersWithProductDetails;
     }),
 
   getAcceptOrder: (req, res) =>
