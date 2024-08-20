@@ -8,9 +8,9 @@ const COLLECTION_SCHEMA = Joi.object({
   customer_id: Joi.string().required(),
   order_id: Joi.string().required(),
   issue_date: Joi.date().default(Date.now),
-  due_date: Joi.date().required(),
+  due_date: Joi.date().required(),  
   invoice_status: Joi.string()
-    .valid("progress", "paid", "return", "overdue")
+    .valid("progress", "success", "failure")
     .required(),
   logs: Joi.array().items(Joi.string()).required(),
   created_at: Joi.date().default(Date.now),
@@ -41,7 +41,7 @@ const InvoiceModel = {
     });
   },
 
-  getInvoicesByStatus: async (seller_id, status) => {
+  getListInvoiceByStatus: async (seller_id, status) => {
     return handleDBOperation(async (collection) => {
       return await collection
         .find({ seller_id, invoice_status: status })

@@ -4,20 +4,6 @@ const { authSellerToken } = require("../../middleware/authToken");
 const router = express.Router();
 
 const routes = [
-  // Get a list of pending orders
-  {
-    method: "get",
-    path: "/",
-    middleware: [authSellerToken],
-    handler: InvoiceController.getListPendingOrder,
-  },
-  // Get pending orders (more information)
-  {
-    method: "get",
-    path: "/by-order/:order_id",
-    middleware: [authSellerToken],
-    handler: InvoiceController.getOrder,
-  },
   // Accept the order then create an invoice
   {
     method: "post",
@@ -31,31 +17,22 @@ const routes = [
     middleware: [authSellerToken],
     handler: InvoiceController.refuseOrder,
   },
-  // Get list pending invoices (meaning the invoice has not been paid or the order has not yet reached the recipient)
+  // get list invoice by status
   {
     method: "get",
-    path: "/list-invoice/progress",
+    path: "/list-invoice/:status",
     middleware: [authSellerToken],
-    handler: InvoiceController.getListProgressInvoice,
+    handler: InvoiceController.getListInvoice,
   },
-  // The invoice has arrived and the recipient has paid for the order
   {
     method: "get",
-    path: "/list-invoice/success",
-    middleware: [authSellerToken],
-    handler: InvoiceController.getListSuccessInvoice,
-  },
-  // Invoices fail for many reasons such as the recipient refusing to accept the goods
-  {
-    method: "get",
-    path: "/list-invoice/refuse",
-    middleware: [authSellerToken],
-    handler: InvoiceController.getListRefuseInvoice,
+    path: "/:invoice_id",
+    handler: InvoiceController.getInvoice,
   },
   // Invoices can be canceled while still in pending status
   {
-    method: "get",
-    path: "/invoice/cancel",
+    method: "post",
+    path: "/cancel",
     middleware: [authSellerToken],
     handler: InvoiceController.cancelInvoice,
   },

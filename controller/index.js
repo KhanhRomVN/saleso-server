@@ -11,6 +11,7 @@ const InvoiceController = require("./seller/invoice.controller");
 const CategoryController = require("./seller/category.controller");
 const DiscountController = require("./seller/discount.controller");
 const RedemptionController = require("./seller/redemption.controller");
+const PaymentController = require("./seller/payment.controller");
 
 // User
 const AuthController = require("./user/auth.controller");
@@ -39,4 +40,5 @@ module.exports = {
   RedemptionController,
   EmployeeController,
   WishlistController,
+  PaymentController,
 };

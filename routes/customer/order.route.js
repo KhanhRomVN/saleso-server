@@ -1,36 +1,32 @@
 const express = require("express");
 const { OrderController } = require("../../controller/index");
-const { authCustomerToken } = require("../../middleware/authToken");
+const { authCustomerToken, authToken } = require("../../middleware/authToken");
 const router = express.Router();
 
 const routes = [
   {
-    method: "post",
+    method: "post", 
     path: "/",
     middleware: [authCustomerToken],
     handler: OrderController.createOrder,
   },
+  // get list order status [pending, accepted, refused] với 2 role [customer, seller]
   {
     method: "get",
-    path: "/",
-    middleware: [authCustomerToken],
+    path: "/:status",
+    middleware: [authToken],
+    handler: OrderController.getListOrder,
+  },
+  // get order with more data
+  {
+    method: "get",
+    path: "/get/:order_id",
     handler: OrderController.getOrder,
   },
+  // customer can cancel order when pending
   {
-    method: "get",
-    path: "/accept",
-    middleware: [authCustomerToken],
-    handler: OrderController.getAcceptOrder,
-  },
-  {
-    method: "get",
-    path: "/refuse",
-    middleware: [authCustomerToken],
-    handler: OrderController.getRefuseOrder,
-  },
-  {
-    method: "post",
-    path: "/cancel/order_id",
+    method: "delete",
+    path: "/cancel/:order_id",
     middleware: [authCustomerToken],
     handler: OrderController.cancelOrder,
   },

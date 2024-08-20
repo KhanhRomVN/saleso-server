@@ -1,9 +1,10 @@
 const {
   InvoiceModel,
   OrderModel,
+  PaymentModel,
   UserModel,
-  ProductModel,
   DiscountModel,
+  ProductModel,
 } = require("../../models/index");
 const logger = require("../../config/logger");
 
@@ -20,105 +21,14 @@ const handleRequest = async (req, res, operation) => {
 };
 
 const InvoiceController = {
-  getListPendingOrder: (req, res) =>
-    handleRequest(req, res, async (req) => {
-      const seller_id = req.user._id.toString();
-      const role = req.user.role;
-      const orders = await OrderModel.getOrder(seller_id, role);
-
-      const processedOrders = await Promise.all(
-        orders.map(async (order) => {
-          const product = await ProductModel.getProductByProdId(
-            order.product_id
-          );
-          const customer = await UserModel.getUserById(
-            order.customer_id,
-            "customer"
-          );
-
-          if (order.discount_id) {
-            const discount = await DiscountModel.getDiscountById(
-              order.discount_id
-            );
-
-            return {
-              _id: order._id,
-              image: product.images[0],
-              name: product.name,
-              username: customer.username,
-              price: order.price,
-              quantity: order.quantity,
-              discount_type: discount.type,
-              discount_value: discount.value,
-              total: order.total,
-              payment_method: order.payment_method,
-              payment_status: order.payment_status,
-            };
-          }
-
-          return {
-            _id: order._id,
-            image: product.images[0],
-            name: product.name,
-            username: customer.username,
-            price: order.price,
-            quantity: order.quantity,
-            total: order.total,
-            payment_method: order.payment_method,
-            payment_status: order.payment_status,
-          };
-        })
-      );
-
-      return processedOrders;
-    }),
-
-  getOrder: (req, res) =>
-    handleRequest(req, res, async (req) => {
-      const { order_id } = req.params;
-      const order = await OrderModel.getOrderById(order_id);
-      const product = await ProductModel.getProductByProdId(order.product_id);
-      const customer = await UserModel.getUserById(
-        order.customer_id,
-        "customer"
-      );
-      const discount = await DiscountModel.getDiscountById(order.discount_id);
-
-      const baseResponse = {
-        order_id: order._id,
-        customer_id: customer._id,
-        username: customer.username,
-        email: customer.email,
-        product_id: product._id,
-        name: product.name,
-        image: product.images[0],
-        shipping_address: order.shipping_address,
-        price: order.price,
-        quantity: order.quantity,
-        total: order.total,
-        payment_method: order.payment_method,
-        payment_status: order.payment_status,
-      };
-
-      return Object.assign(
-        {},
-        baseResponse,
-        order.selected_attributes_value && {
-          selected_attributes_value: order.selected_attributes_value,
-        },
-        discount?.type && { discount_type: discount.type },
-        discount?.value && { discount_value: discount.value }
-      );
-    }),
-
   acceptOrder: (req, res) =>
     handleRequest(req, res, async (req) => {
-      const { order_id, due_date } = req.body;
       const seller_id = req.user._id.toString();
+      const { order_id, due_date } = req.body;
+      console.log(seller_id);
 
       // auth
       const order = await OrderModel.getOrderById(order_id);
-      console.log(order);
       if (!order || order.seller_id !== seller_id) {
         throw new Error("Order not found or not authorized");
       }
@@ -138,38 +48,107 @@ const InvoiceController = {
         invoice_status: "progress",
       };
 
-      return await InvoiceModel.createInvoice(invoiceData);
+      // create invoice
+      const invoice = await InvoiceModel.createInvoice(invoiceData);
+      await PaymentModel.createInvoice(invoice, order_id);
+
+      return { message: "Create invoice successfully" };
     }),
 
   refuseOrder: (req, res) =>
     handleRequest(req, res, async (req) => {
       const { order_id } = req.body;
-      const seller_id = req.user._id;
+      const seller_id = req.user._id.toString();
 
+      // auth
       const order = await OrderModel.getOrderById(order_id);
       if (!order || order.seller_id !== seller_id) {
         throw new Error("Order not found or not authorized");
       }
 
-      return await OrderModel.updateOrderStatus(order_id, "refused");
+      // change order status
+      await OrderModel.updateOrderStatus(order_id, "refused");
+      await PaymentModel.refuseOrder(order_id);
+      return { message: "Refuse Order" };
     }),
 
-  getListProgressInvoice: (req, res) =>
+  getListInvoice: (req, res) =>
     handleRequest(req, res, async (req) => {
+      const { status } = req.params;
       const seller_id = req.user._id.toString();
-      return await InvoiceModel.getInvoicesByStatus(seller_id, "progress");
+      return await InvoiceModel.getListInvoiceByStatus(seller_id, status);
     }),
 
-  getListSuccessInvoice: (req, res) =>
+  getInvoice: (req, res) =>
     handleRequest(req, res, async (req) => {
-      const seller_id = req.user._id.toString();
-      return await InvoiceModel.getInvoicesByStatus(seller_id, "paid");
-    }),
+      const { invoice_id } = req.params;
+      const invoice = await InvoiceModel.getInvoiceById(invoice_id);
+      const customer = await UserModel.getUserById(
+        invoice.customer_id,
+        "customer"
+      );
+      const order = await OrderModel.getOrderById(invoice.order_id);
+      const product = await ProductModel.getProductByProdId(order.product_id);
+      const payment = await PaymentModel.getPayment(invoice.order_id);
 
-  getListRefuseInvoice: (req, res) =>
-    handleRequest(req, res, async (req) => {
-      const seller_id = req.user._id.toString();
-      return await InvoiceModel.getInvoicesByStatus(seller_id, "return");
+      let discount = null;
+      if (order.discount_id) {
+        discount = await DiscountModel.getDiscountById(order.discount_id);
+      }
+
+      let selectedAttribute = null;
+      if (order.selected_attributes_value) {
+        selectedAttribute = product.attributes.find(
+          (attr) => attr.attributes_value === order.selected_attributes_value
+        );
+      }
+
+      const invoiceCustom = {
+        // invoice
+        invoice_id: invoice._id,
+        issue_date: invoice.issue_date,
+        due_date: invoice.due_date,
+        invoice_status: invoice.invoice_status,
+        logs: invoice.logs,
+        // seller
+        seller_id: invoice.seller_id,
+        // customer
+        customer_id: invoice.customer_id,
+        customer_username: customer.username,
+        customer_email: customer.email,
+        // product
+        product_id: order.product_id,
+        product_name: product.name,
+        product_image: product.images[0],
+        product_price: selectedAttribute
+          ? selectedAttribute.attributes_price
+          : product.price,
+        // order
+        quantity: order.quantity,
+        shipping_fee: order.shipping_fee,
+        shipping_address: order.shipping_address,
+        // payment
+        payment_method: payment.payment_method,
+        payment_status: payment.payment_status,
+        // total
+        total_amount: order.total_amount,
+      };
+
+      if (selectedAttribute) {
+        invoiceCustom.product_attributes_value =
+          selectedAttribute.attributes_value;
+      }
+
+      if (discount) {
+        invoiceCustom.discount_id = order.discount_id;
+        invoiceCustom.discount_type = discount.type;
+        invoiceCustom.discount_value =
+          typeof discount.value === "number"
+            ? discount.value
+            : `Buy ${discount.value.buyQuantity} get ${discount.value.getFreeQuantity}`;
+      }
+
+      return invoiceCustom;
     }),
 
   cancelInvoice: (req, res) =>

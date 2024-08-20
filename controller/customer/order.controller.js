@@ -1,5 +1,10 @@
-const { OrderModel, ProductModel } = require("../../models/index");
+const {
+  OrderModel,
+  ProductModel,
+  PaymentModel,
+} = require("../../models/index");
 const logger = require("../../config/logger");
+const { error } = require("winston");
 
 const handleRequest = async (req, res, operation) => {
   try {
@@ -17,22 +22,25 @@ const OrderController = {
   createOrder: (req, res) =>
     handleRequest(req, res, async (req) => {
       const customer_id = req.user._id.toString();
-      const orderItems = req.body;
+      const { orderItems, payment_method, payment_status } = req.body;
 
-      if (!Array.isArray(orderItems) || orderItems.length === 0) {
-        throw new Error(
-          "Invalid order data. Expected a non-empty array of order items."
-        );
-      }
+      // update stock product
+      await Promise.all(
+        orderItems.map(async (item) => {
+          await ProductModel.updateStock(
+            item.product_id,
+            item.quantity,
+            item.selected_attributes_value
+          );
+        })
+      );
 
+      // create order
       const processedOrders = await Promise.all(
         orderItems.map(async (item) => {
           const product = await ProductModel.getProductByProdId(
             item.product_id
           );
-          if (!product) {
-            throw new Error(`Product not found for ID: ${item.product_id}`);
-          }
 
           return {
             ...item,
@@ -43,54 +51,81 @@ const OrderController = {
         })
       );
 
-      const createdOrders = await Promise.all(
-        processedOrders.map(OrderModel.createOrder)
-      );
-
-      return {
-        message: "Orders created successfully",
-        orderIds: createdOrders,
-      };
-    }),
-
-  getOrder: (req, res) =>
-    handleRequest(req, res, async (req) => {
-      const customer_id = req.user._id.toString();
-      const role = req.user.role;
-      const orders = await OrderModel.getOrder(customer_id, role);
-
-      const ordersWithProductDetails = await Promise.all(
-        orders.map(async (order) => {
-          const product = await ProductModel.getProductByProdId(
-            order.product_id
-          );
+      const orderIds = await Promise.all(
+        processedOrders.map(async (item) => {
+          const { order_id, seller_id } = await OrderModel.createOrder(item);
           return {
-            ...order,
-            name: product.name,
-            image: product.images[0] || null,
+            order_id,
+            seller_id,
           };
         })
       );
 
-      return ordersWithProductDetails;
+      // create payment
+      await Promise.all(
+        orderIds.map(async (order) => {
+          const paymentData = {
+            ...order,
+            customer_id,
+            payment_method,
+            payment_status,
+          };
+          return await PaymentModel.createPayment(paymentData);
+        })
+      );
+
+      // drop product cart
+
+      return { message: "Create Order Successful" };
     }),
 
-  getAcceptOrder: (req, res) =>
+  getListOrder: (req, res) =>
     handleRequest(req, res, async (req) => {
-      const customer_id = req.user._id.toString();
-      return await OrderModel.getListAcceptOrder(customer_id);
+      const { status } = req.params;
+      const id = req.user._id.toString();
+      const role = req.user.role;
+
+      let orders = await OrderModel.getListOrder(id, role, status);
+
+      const orderPromises = orders.map(async (order) => {
+        if (order.product_id) {
+          const product = await ProductModel.getProductByProdId(
+            order.product_id
+          );
+          if (product) {
+            return {
+              ...order,
+              product_name: product.name,
+              product_image:
+                product.images && product.images.length > 0
+                  ? product.images[0]
+                  : null,
+            };
+          }
+        }
+        return order;
+      });
+
+      orders = await Promise.all(orderPromises);
+
+      return orders;
     }),
 
-  getRefuseOrder: (req, res) =>
+  getOrder: (req, res) =>
     handleRequest(req, res, async (req) => {
-      const customer_id = req.user._id.toString();
-      return await OrderModel.getListRefuseOrder(customer_id);
+      const { order_id } = req.params;
+      return await OrderModel.getOrder(order_id);
     }),
 
   cancelOrder: (req, res) =>
     handleRequest(req, res, async (req) => {
+      const { order_id } = req.params;
       const customer_id = req.user._id.toString();
-
+      const orderData = await OrderModel.getOrder(order_id);
+      if (customer_id !== orderData.customer_id) {
+        return { error: "You can not cancel this order" };
+      }
+      await OrderModel.cancelOrder(order_id, customer_id);
       return { message: "Order cancel successfully" };
     }),
 };

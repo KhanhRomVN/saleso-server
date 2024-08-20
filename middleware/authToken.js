@@ -8,18 +8,23 @@ const verifyToken = (accessToken) => {
   return jwt.verify(accessToken, process.env.JWT_SECRET_KEY);
 };
 
-const createAuthMiddleware = (roleCheck) => async (req, res, next) => {
+const createAuthMiddleware = (roles) => async (req, res, next) => {
   try {
     const accessToken = req.header("accessToken");
     const decoded = verifyToken(accessToken);
 
-    const user = await UserModel.getUserById(decoded.user_id, roleCheck);
+    let user = null;
+    for (const role of roles) {
+      user = await UserModel.getUserById(decoded.user_id, role);
+      if (user) break;
+    }
+
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    if (roleCheck !== user.role) {
-      return res.status(403).json({ error: `You are not authorized` });
+    if (!roles.includes(user.role)) {
+      return res.status(403).json({ error: "You are not authorized" });
     }
 
     req.user = user;
@@ -41,9 +46,9 @@ const createAuthMiddleware = (roleCheck) => async (req, res, next) => {
 };
 
 module.exports = {
-  authToken: createAuthMiddleware("customer" || "seller"),
-  authCustomerToken: createAuthMiddleware("customer"),
-  authSellerToken: createAuthMiddleware("seller"),
-  authAdminToken: createAuthMiddleware("admin"),
-  authEmployeeToken: createAuthMiddleware("employee"),
+  authToken: createAuthMiddleware(["customer", "seller"]),
+  authCustomerToken: createAuthMiddleware(["customer"]),
+  authSellerToken: createAuthMiddleware(["seller"]),
+  authAdminToken: createAuthMiddleware(["admin"]),
+  authEmployeeToken: createAuthMiddleware(["employee"]),
 };

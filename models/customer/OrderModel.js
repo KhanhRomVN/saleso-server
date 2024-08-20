@@ -9,16 +9,14 @@ const COLLECTION_SCHEMA = Joi.object({
   product_id: Joi.string().required(),
   selected_attributes_value: Joi.string(),
   quantity: Joi.number().integer().min(1).required(),
-  price: Joi.number().required(),
-  total: Joi.number().required(),
+  total_amount: Joi.number().required(),
   discount_id: Joi.string(),
+  // shipping_method: Joi.string().required(),
   shipping_fee: Joi.number().min(0).required(),
-  payment_method: Joi.string().valid("prepaid", "postpaid").required(),
-  payment_status: Joi.string().valid("paid", "unpaid").required(),
-  order_status: Joi.string().valid("pending", "accepted", "refused").required(),
   shipping_address: Joi.string().required(),
-  created_at: Joi.date().default(Date.now),
-  updated_at: Joi.date().default(Date.now),
+  order_status: Joi.string().valid("pending", "accepted", "refused").required(),
+  create_at: Joi.date().default(Date.now),
+  update_at: Joi.date().default(Date.now),
 }).options({ abortEarly: false });
 
 const handleDBOperation = async (operation) => {
@@ -38,54 +36,39 @@ const OrderModel = {
 
     return handleDBOperation(async (collection) => {
       const result = await collection.insertOne(orderData);
-      return result.insertedId;
+      return {
+        seller_id: orderData.seller_id,
+        order_id: result.insertedId.toString(),
+      };
     });
   },
 
-  getOrder: async (id, role) => {
+  getListOrder: async (id, role, status) => {
     return handleDBOperation(async (collection) => {
       if (role === "customer") {
-        return await collection.find({ customer_id: id }).toArray();
-      } else {
-        // get list pending order from seller_id
         return await collection
-          .find({ seller_id: id, order_status: "pending" })
+          .find({ customer_id: id, order_status: status })
+          .toArray();
+      } else if (role === "seller") {
+        return await collection
+          .find({ seller_id: id, order_status: status })
           .toArray();
       }
     });
   },
 
-  getListAcceptOrder: async (customer_id) => {
+  getOrder: async (order_id) => {
     return handleDBOperation(async (collection) => {
-      return await collection
-        .find({
-          customer_id: customer_id,
-          order_status: "accepted",
-        })
-        .toArray();
-    });
-  },
-
-  getListRefuseOrder: async (customer_id) => {
-    return handleDBOperation(async (collection) => {
-      return await collection
-        .find({
-          customer_id: customer_id,
-          order_status: "refused",
-        })
-        .toArray();
+      return await collection.findOne({ _id: new ObjectId(order_id) });
     });
   },
 
   cancelOrder: async (order_id, customer_id) => {
     return handleDBOperation(async (collection) => {
-      const result = await collection.updateOne(
-        { _id: new ObjectId(order_id), customer_id: customer_id },
-        { $set: { order_status: "cancelled", updated_at: new Date() } }
-      );
-      if (result.modifiedCount === 0) {
-        throw new Error("Order not found or already cancelled");
-      }
+      await collection.deleteOne({
+        _id: new ObjectId(order_id),
+        customer_id: customer_id,
+      });
       return { message: "Order cancelled successfully" };
     });
   },

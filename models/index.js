@@ -10,6 +10,7 @@ const InvoiceModel = require("./seller/InvoiceModel");
 const CategoryModel = require("./seller/CategoryModel");
 const DiscountModel = require("./seller/DiscountModel");
 const RedemptionModel = require("./seller/RedemptionModel");
+const PaymentModel = require("./seller/PaymentModel");
 
 // User
 const ConversationModel = require("./user/ConversationModel");
@@ -24,22 +25,26 @@ const ImageModel = require("./employee/ImageModel");
 const EmployeeModel = require("./employee/EmployeeModel");
 
 module.exports = {
+  // customer
   CartModel,
   OrderModel,
   ReviewModel,
+  WishlistModel,
+  // seller
+  ProductModel,
   InvoiceModel,
-  ProductModel,
   CategoryModel,
-  ProductModel,
+  DiscountModel,
+  RedemptionModel,
+  PaymentModel,
+  // user
   ConversationModel,
   MessageModel,
   NotificationModel,
   OTPModel,
   UserDetailModel,
   UserModel,
+  // Employee
   ImageModel,
-  DiscountModel,
-  RedemptionModel,
   EmployeeModel,
-  WishlistModel,
 };

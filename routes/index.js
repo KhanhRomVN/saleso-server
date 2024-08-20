@@ -11,6 +11,7 @@ const invoice = require("./seller/invoice.route");
 const category = require("./seller/category.route");
 const discount = require("./seller/discount.route");
 const redemption = require("./seller/redemption.route");
+const payment = require("./seller/payment.route");
 
 // User
 const auth = require("./user/auth.route");
@@ -39,4 +40,5 @@ module.exports = {
   discount,
   redemption,
   elastic,
+  payment,
 };

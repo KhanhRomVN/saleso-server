@@ -354,26 +354,71 @@ const ProductModel = {
       return topProducts;
     }),
 
-  updateStock: async (productId, quantity) =>
+  updateStock: async (productId, quantity, selected_attributes_value = null) =>
     handleDBOperation(async (collection) => {
       if (!ObjectId.isValid(productId)) {
         throw new Error("Invalid product ID");
       }
 
-      const result = await collection.findOneAndUpdate(
-        { _id: new ObjectId(productId) },
-        {
-          $inc: { stock: -quantity, units_sold: quantity },
-          $set: { updatedAt: new Date() },
-        },
-        { returnDocument: "after" }
-      );
+      const baseUpdate = {
+        $inc: { units_sold: quantity },
+        $set: { updatedAt: new Date() },
+      };
 
-      if (!result.value) {
-        throw new Error("Product not found or update failed");
+      if (selected_attributes_value) {
+        // Check attributes_quantity
+        const product = await collection.findOne({
+          _id: new ObjectId(productId),
+        });
+
+        if (!product) {
+          throw new Error("Product not found");
+        }
+
+        const attribute = product.attributes.find(
+          (attr) => attr.attributes_value === selected_attributes_value
+        );
+
+        if (!attribute || attribute.attributes_quantity < quantity) {
+          throw new Error("Insufficient stock for the selected attribute");
+        }
+
+        const result = await collection.findOneAndUpdate(
+          {
+            _id: new ObjectId(productId),
+            "attributes.attributes_value": selected_attributes_value,
+          },
+          {
+            ...baseUpdate,
+            $inc: {
+              "attributes.$.attributes_quantity": -quantity,
+            },
+          },
+          { returnDocument: "after" }
+        );
+      } else if (selected_attributes_value === null) {
+        // Check stock
+        const product = await collection.findOne({
+          _id: new ObjectId(productId),
+        });
+
+        if (!product) {
+          throw new Error("Product not found");
+        }
+
+        if (product.stock < quantity) {
+          throw new Error("Insufficient stock");
+        }
+
+        const result = await collection.findOneAndUpdate(
+          { _id: new ObjectId(productId) },
+          {
+            ...baseUpdate,
+            $inc: { stock: -quantity },
+          },
+          { returnDocument: "after" }
+        );
       }
-
-      return result.value;
     }),
 
   syncProductToES: async (productId) =>
