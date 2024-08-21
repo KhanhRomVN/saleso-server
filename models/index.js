@@ -1,7 +1,7 @@
 // Customer
 const CartModel = require("./customer/CartModel");
 const OrderModel = require("./customer/OrderModel");
-const ReviewModel = require("./customer/ReviewModel");
+const FeedbackModel = require("./customer/FeedbackModel");
 const WishlistModel = require("./customer/WishlistModel");
 
 // Seller
@@ -28,7 +28,7 @@ module.exports = {
   // customer
   CartModel,
   OrderModel,
-  ReviewModel,
+  FeedbackModel,
   WishlistModel,
   // seller
   ProductModel,

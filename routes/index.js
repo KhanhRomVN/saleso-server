@@ -1,5 +1,5 @@
 // Customer
-const review = require("./customer/review.route");
+const feedback = require("./customer/feedback.route");
 const cart = require("./customer/cart.route");
 const order = require("./customer/order.route");
 const customer = require("./customer/customer.route");
@@ -27,7 +27,7 @@ module.exports = {
   auth,
   user,
   product,
-  review,
+  feedback,
   chat,
   cart,
   category,

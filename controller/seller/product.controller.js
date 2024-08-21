@@ -1,7 +1,7 @@
 const {
   ProductModel,
   DiscountModel,
-  ReviewModel,
+  FeedbackModel,
 } = require("../../models/index");
 const logger = require("../../config/logger");
 // const { redisClient } = require("../../config/redisClient");
@@ -102,7 +102,7 @@ const ProductController = {
         })
       );
 
-      const reviews = await ReviewModel.getAverageRatingForProduct(
+      const reviews = await FeedbackModel.getAverageRatingForProduct(
         req.params.product_id
       );
 
@@ -141,7 +141,7 @@ const ProductController = {
       const processedProducts = await Promise.all(
         result.products.map(async (product) => {
           const { averageRating, totalReviews } =
-            await ReviewModel.getAverageRatingForProduct(product._id);
+            await FeedbackModel.getAverageRatingForProduct(product._id);
 
           return {
             ...product,
@@ -232,7 +232,7 @@ const ProductController = {
       const processedProducts = await Promise.all(
         products.map(async (product) => {
           const { averageRating, totalReviews } =
-            await ReviewModel.getAverageRatingForProduct(product._id);
+            await FeedbackModel.getAverageRatingForProduct(product._id);
 
           return {
             _id: product._id,
@@ -271,7 +271,7 @@ const ProductController = {
           const processedProducts = await Promise.all(
             products.map(async (product) => {
               const { averageRating, totalReviews } =
-                await ReviewModel.getAverageRatingForProduct(product._id);
+                await FeedbackModel.getAverageRatingForProduct(product._id);
 
               return {
                 _id: product._id,

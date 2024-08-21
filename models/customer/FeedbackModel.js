@@ -2,18 +2,23 @@ const Joi = require("joi");
 const { getDB } = require("../../config/mongoDB");
 const { ObjectId } = require("mongodb");
 
-const COLLECTION_NAME = "reviews";
+const COLLECTION_NAME = "feedbacks";
 const COLLECTION_SCHEMA = Joi.object({
-  customer_id: Joi.string().required(),
-  username: Joi.string().required(),
+  user_id: Joi.string().required(),
+  is_owner: Joi.boolean().required(),
   product_id: Joi.string().required(),
+  owner_id: Joi.string().required(),
   rating: Joi.number().min(1).max(5).required(),
   comment: Joi.string().required(),
   images: Joi.array().items(Joi.string()),
-  likes: Joi.array().items(Joi.string()),
-  reply: Joi.array().items(Joi.string()),
-  verified_purchase: Joi.boolean().default(false),
-});
+  reply: Joi.object({
+    comment: Joi.string().required(),
+    createdAt: Joi.date().default(Date.now),
+    updatedAt: Joi.date().default(Date.now),
+  }),
+  createdAt: Joi.date().default(Date.now),
+  updatedAt: Joi.date().default(Date.now),
+}).options({ abortEarly: false });
 
 const handleDBOperation = async (operation) => {
   const db = getDB();
@@ -25,81 +30,79 @@ const handleDBOperation = async (operation) => {
   }
 };
 
-const ReviewModel = {
-  createReview: async (reviewData) =>
+const FeedbackModel = {
+  createFeedback: async (feedbackData) =>
     handleDBOperation(async (collection) => {
-      const { error } = COLLECTION_SCHEMA.validate(reviewData);
+      const { error } = COLLECTION_SCHEMA.validate(feedbackData);
       if (error) throw new Error(error.details[0].message);
-      await collection.insertOne(reviewData);
+      const result = await collection.insertOne(feedbackData);
+      return result.insertedId;
     }),
 
-  getReviewById: async (reviewId) =>
+  replyFeedback: async (feedback_id, replyData) =>
     handleDBOperation(async (collection) => {
-      if (!ObjectId.isValid(reviewId)) throw new Error("Invalid review ID");
-      return await collection.findOne({ _id: new ObjectId(reviewId) });
-    }),
-
-  getReviewsByProductId: async (productId) =>
-    handleDBOperation(async (collection) => {
-      return await collection.find({ product_id: productId }).toArray();
-    }),
-
-  getReviewsByCustomerId: async (customer_id) =>
-    handleDBOperation(async (collection) => {
-      return await collection.find({ customer_id: customer_id }).toArray();
-    }),
-
-  replyReview: async (review_id, replyData) =>
-    handleDBOperation(async (collection) => {
-      if (!ObjectId.isValid(review_id)) throw new Error("Invalid review ID");
-
-      const { error } = COLLECTION_SCHEMA.validate(replyData);
-      if (error) throw new Error(error.details[0].message);
-
-      const result = await collection.insertOne(replyData);
-      const newReplyId = result.insertedId;
-
-      const updateResult = await collection.findOneAndUpdate(
-        { _id: new ObjectId(review_id) },
-        {
-          $push: {
-            reply: newReplyId.toString(),
-          },
-        },
-        { returnDocument: "after" }
+      await collection.updateOne(
+        { _id: new ObjectId(feedback_id) },
+        { $set: { reply: replyData } }
       );
     }),
 
-  deleteReview: async (reviewId) =>
+  deleteFeedback: async (feedback_id) =>
     handleDBOperation(async (collection) => {
-      if (!ObjectId.isValid(reviewId)) throw new Error("Invalid review ID");
-      const result = await collection.deleteOne({
-        _id: new ObjectId(reviewId),
-      });
-      if (result.deletedCount === 0) throw new Error("Review not found");
-      return { message: "Review deleted successfully" };
+      await collection.deleteOne({ _id: new ObjectId(feedback_id) });
     }),
 
-  likeReview: async (review_id, customer_id) =>
+  getFeedbackById: async (feedback_id) =>
     handleDBOperation(async (collection) => {
-      if (!ObjectId.isValid(review_id)) throw new Error("Invalid review ID");
-      const result = await collection.updateOne(
-        { _id: new ObjectId(review_id) },
-        { $push: { likes: customer_id } }
-      );
-      if (result.modifiedCount === 0) throw new Error("Review not found");
-      return { message: "Review liked successfully" };
+      return await collection.findOne({ _id: new ObjectId(feedback_id) });
     }),
 
-  unlikeReview: async (review_id, customer_id) =>
+  getAllFeedbacks: async (start, end, ownerId) =>
     handleDBOperation(async (collection) => {
-      if (!ObjectId.isValid(review_id)) throw new Error("Invalid review ID");
-      const result = await collection.updateOne(
-        { _id: new ObjectId(review_id) },
-        { $pull: { likes: customer_id } }
-      );
-      if (result.modifiedCount === 0) throw new Error("Review not found");
-      return { message: "Review unliked successfully" };
+      const feedbacks = await collection
+        .find({ owner_id: ownerId })
+        .sort({ createdAt: -1 })
+        .skip(start - 1)
+        .limit(end - start + 1)
+        .toArray();
+      return feedbacks;
+    }),
+
+  getCustomerFeedbacks: async (userId, start, end, ownerId) =>
+    handleDBOperation(async (collection) => {
+      const feedbacks = await collection
+        .find({ user_id: userId, owner_id: ownerId })
+        .sort({ createdAt: -1 })
+        .skip(start - 1)
+        .limit(end - start + 1)
+        .toArray();
+      return feedbacks;
+    }),
+
+  getProductFeedbacks: async (productId, start, end) =>
+    handleDBOperation(async (collection) => {
+      const feedbacks = await collection
+        .find({ product_id: productId })
+        .sort({ createdAt: -1 })
+        .skip(start - 1)
+        .limit(end - start + 1)
+        .toArray();
+      return feedbacks;
+    }),
+
+  getFilteredFeedbacks: async (ownerId, product_id, rating, start, end) =>
+    handleDBOperation(async (collection) => {
+      const filters = { owner_id: ownerId };
+      if (product_id) filters.product_id = product_id;
+      if (rating) filters.rating = rating;
+
+      const feedbacks = await collection
+        .find(filters)
+        .sort({ createdAt: -1 })
+        .skip(start - 1)
+        .limit(end - start + 1)
+        .toArray();
+      return feedbacks;
     }),
 
   getAverageRatingForProduct: async (product_id) =>
@@ -183,4 +186,4 @@ const ReviewModel = {
     }),
 };
 
-module.exports = ReviewModel;
+module.exports = FeedbackModel;

@@ -1,7 +1,7 @@
 // Customer
 const CartController = require("./customer/cart.controller");
 const OrderController = require("./customer/order.controller");
-const ReviewController = require("./customer/review.controller");
+const FeedbackController = require("./customer/feedback.controller");
 const CustomerController = require("./customer/customer.controller");
 const WishlistController = require("./customer/wishlist.controller");
 
@@ -29,7 +29,7 @@ module.exports = {
   CategoryController,
   CartController,
   OrderController,
-  ReviewController,
+  FeedbackController,
   AuthController,
   ConservationController,
   UserController,
