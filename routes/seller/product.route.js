@@ -16,8 +16,9 @@ const routes = [
     handler: ProductController.getProductById,
   },
   {
-    method: "get",
-    path: "/by-seller/:seller_id",
+    method: "post",
+    path: "/by-seller",
+    middleware: [authSellerToken],
     handler: ProductController.getProductsBySellerId,
   },
   {

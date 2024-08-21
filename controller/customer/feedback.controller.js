@@ -91,7 +91,28 @@ const FeedbackController = {
         end,
         owner_id
       );
-      return feedbackList;
+
+      // Enrich the feedback data with user and product information
+      const enrichedFeedbackList = await Promise.all(
+        feedbackList.map(async (feedback) => {
+          const user = await UserModel.getUserById(
+            feedback.user_id,
+            "customer"
+          );
+          const product = await ProductModel.getProductByProdId(
+            feedback.product_id
+          );
+
+          return {
+            ...feedback,
+            username: user.username,
+            productName: product.name,
+            productImage: product.images[0] || null,
+          };
+        })
+      );
+
+      return enrichedFeedbackList;
     }),
 
   // Get all feedback from a specific customer
@@ -135,18 +156,39 @@ const FeedbackController = {
 
   getFilteredFeedbacks: (req, res) =>
     handleRequest(req, res, async (req) => {
-      // owner_id + product_id = Get all feedback of the specified product
-      // owner_id + product_id + rating = Get all feedback for products with a specific rating assigned
       const { product_id, rating, start = 1, end = 10 } = req.body;
       const owner_id = req.user._id.toString();
-      const feedbackList = await FeedbackModel.getFilteredFeedbacks(
+
+      const params = {
         owner_id,
-        product_id,
-        rating,
         start,
-        end
+        end,
+      };
+
+      if (product_id != null) params.product_id = product_id;
+      if (rating != null) params.rating = rating;
+
+      const feedbackList = await FeedbackModel.getFilteredFeedbacks(params);
+      const enrichedFeedbackList = await Promise.all(
+        feedbackList.map(async (feedback) => {
+          const user = await UserModel.getUserById(
+            feedback.user_id,
+            "customer"
+          );
+          const product = await ProductModel.getProductByProdId(
+            feedback.product_id
+          );
+
+          return {
+            ...feedback,
+            username: user.username,
+            productName: product.name,
+            productImage: product.images[0] || null,
+          };
+        })
       );
-      return feedbackList;
+
+      return enrichedFeedbackList;
     }),
 
   getProductRating: (req, res) =>

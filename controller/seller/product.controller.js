@@ -127,9 +127,10 @@ const ProductController = {
     }),
 
   getProductsBySellerId: (req, res) =>
-    handleRequest(req, res, async (req) =>
-      ProductModel.getListProductBySellerId(req.params.seller_id)
-    ),
+    handleRequest(req, res, async (req) => {
+      const seller_id = req.user._id.toString();
+      return ProductModel.getListProductBySellerId(seller_id);
+    }),
 
   getAllProduct: (req, res) =>
     handleRequest(req, res, async (req) => {

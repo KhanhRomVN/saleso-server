@@ -16,8 +16,8 @@ const routes = [
   },
   {
     method: "post",
-    path: "/:feedback_id/reply",
-    middleware: [authToken],
+    path: "/reply/:feedback_id",
+    middleware: [authSellerToken],
     handler: FeedbackController.replyFeedback,
   },
   {
@@ -27,13 +27,13 @@ const routes = [
     handler: FeedbackController.deleteFeedback,
   },
   {
-    method: "get",
+    method: "post",
     path: "/seller/feedbacks",
     middleware: [authSellerToken],
     handler: FeedbackController.getAllFeedbacks,
   },
   {
-    method: "get",
+    method: "post",
     path: "/seller/customer-feedbacks",
     middleware: [authSellerToken],
     handler: FeedbackController.getCustomerFeedbacks,
@@ -44,7 +44,7 @@ const routes = [
     handler: FeedbackController.getProductFeedbacks,
   },
   {
-    method: "get",
+    method: "post",
     path: "/seller/filtered-feedbacks",
     middleware: [authSellerToken],
     handler: FeedbackController.getFilteredFeedbacks,

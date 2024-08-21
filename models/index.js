@@ -9,7 +9,6 @@ const ProductModel = require("./seller/ProductModel");
 const InvoiceModel = require("./seller/InvoiceModel");
 const CategoryModel = require("./seller/CategoryModel");
 const DiscountModel = require("./seller/DiscountModel");
-const RedemptionModel = require("./seller/RedemptionModel");
 const PaymentModel = require("./seller/PaymentModel");
 
 // User
@@ -21,7 +20,7 @@ const UserDetailModel = require("./user/UserDetailModel");
 const UserModel = require("./user/UserModel");
 
 // Employee
-const ImageModel = require("./employee/ImageModel");
+const GalleryModel = require("./employee/GalleryModel");
 const EmployeeModel = require("./employee/EmployeeModel");
 
 module.exports = {
@@ -35,7 +34,6 @@ module.exports = {
   InvoiceModel,
   CategoryModel,
   DiscountModel,
-  RedemptionModel,
   PaymentModel,
   // user
   ConversationModel,
@@ -45,6 +43,6 @@ module.exports = {
   UserDetailModel,
   UserModel,
   // Employee
-  ImageModel,
+  GalleryModel,
   EmployeeModel,
 };

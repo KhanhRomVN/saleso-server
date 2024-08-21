@@ -90,9 +90,11 @@ const FeedbackModel = {
       return feedbacks;
     }),
 
-  getFilteredFeedbacks: async (ownerId, product_id, rating, start, end) =>
+  getFilteredFeedbacks: async (params) =>
     handleDBOperation(async (collection) => {
-      const filters = { owner_id: ownerId };
+      const { owner_id, product_id, rating, start, end } = params;
+
+      const filters = { owner_id };
       if (product_id) filters.product_id = product_id;
       if (rating) filters.rating = rating;
 
