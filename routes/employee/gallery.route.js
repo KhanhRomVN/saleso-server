@@ -1,13 +1,12 @@
 const express = require("express");
 const { GalleryController } = require("../../controller/index");
-const { authEmployeeToken } = require("../../middleware/authToken");
+// const { authEmployeeToken } = require("../../middleware/authToken");
 const router = express.Router();
 
 const routes = [
   {
     method: "post",
     path: "/",
-    middleware: [authEmployeeToken],
     handler: GalleryController.createImage,
   },
   {
@@ -19,6 +18,11 @@ const routes = [
     method: "get",
     path: "/ongoing",
     handler: GalleryController.getOngoingGallery,
+  },
+  {
+    method: "post",
+    path: "/filter",
+    handler: GalleryController.getFilteredAndSortedImages,
   },
 ];
 

@@ -11,25 +11,33 @@ const handleRequest = async (req, res, operation) => {
 
 const determineStatus = (startDate, endDate) => {
   const now = new Date();
-  if (now < startDate) return "upcoming";
-  if (now >= startDate && now <= endDate) return "ongoing";
+  startDate = new Date(startDate);
+  endDate = new Date(endDate);
+
+  if (now.getTime() < startDate.getTime()) return "upcoming";
+  if (
+    now.getTime() >= startDate.getTime() &&
+    now.getTime() <= endDate.getTime()
+  )
+    return "ongoing";
   return "expired";
 };
 
 const GalleryController = {
   createImage: (req, res) =>
     handleRequest(req, res, async (req) => {
-      const { image_uri, type, ratio, startDate, endDate } = req.body;
+      const { image_uri, type, ratio, path, startDate, endDate } = req.body;
       const status = determineStatus(startDate, endDate);
       const imageData = {
         image_uri,
         type,
         ratio,
+        path,
         startDate,
         endDate,
         status,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        created_at: new Date(),
+        updated_at: new Date(),
       };
       await GalleryModel.createImage(imageData);
       return { success: "Create image/gallery success" };
@@ -45,6 +53,49 @@ const GalleryController = {
   getOngoingGallery: (req, res) =>
     handleRequest(req, res, async (req) => {
       return await GalleryModel.getOngoingImages();
+    }),
+
+  getFilteredAndSortedImages: (req, res) =>
+    handleRequest(req, res, async (req) => {
+      const {
+        type,
+        ratio,
+        status,
+        currentDate,
+        startDate,
+        endDate,
+        keyword,
+        sortField,
+        sortOrder,
+        page = 1,
+        limit = 10,
+      } = req.body;
+
+      const filters = {
+        type,
+        ratio,
+        status,
+        currentDate: currentDate === "true",
+        startDate,
+        endDate,
+        keyword,
+      };
+
+      const sortOptions = sortField
+        ? { field: sortField, order: sortOrder || "asc" }
+        : null;
+
+      const pagination = {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        skip: (parseInt(page) - 1) * parseInt(limit),
+      };
+
+      return await GalleryModel.getFilteredAndSortedImages(
+        filters,
+        sortOptions,
+        pagination
+      );
     }),
 };
 
