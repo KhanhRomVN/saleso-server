@@ -51,34 +51,39 @@ const GalleryModel = {
     });
   },
 
-  getOngoingImages: async () => {
+  getImageById: async (image_id) => {
     return handleDBOperation(async (collection) => {
-      const ongoingImages = await collection
-        .find({
-          status: "ongoing",
-        })
-        .toArray();
-      return ongoingImages;
+      return await collection.findOne({ _id: new ObjectId(image_id) });
+    });
+  },
+
+  updateImagePath: async (image_id, newPath) => {
+    return handleDBOperation(async (collection) => {
+      const result = await collection.findOneAndUpdate(
+        { _id: new ObjectId(image_id) },
+        {
+          $set: {
+            path: newPath,
+            updated_at: new Date(),
+          },
+        },
+        { returnDocument: "after" }
+      );
+      return result.value;
     });
   },
 
   getFilteredAndSortedImages: async (filters, sortOptions, pagination) => {
     return handleDBOperation(async (collection) => {
       let query = {};
-
-      // Áp dụng các bộ lọc
       if (filters.type) query.type = filters.type;
       if (filters.ratio) query.ratio = filters.ratio;
       if (filters.status) query.status = filters.status;
-
-      // Lọc theo ngày hiện tại
       if (filters.currentDate) {
         const now = new Date();
         query.startDate = { $lte: now };
         query.endDate = { $gte: now };
       }
-
-      // Lọc theo khoảng thời gian
       if (filters.startDate || filters.endDate) {
         query.startDate = query.startDate || {};
         query.endDate = query.endDate || {};
@@ -86,19 +91,13 @@ const GalleryModel = {
           query.startDate.$gte = new Date(filters.startDate);
         if (filters.endDate) query.endDate.$lte = new Date(filters.endDate);
       }
-
-      // Tìm kiếm theo từ khóa trong path
       if (filters.keyword) {
         query.path = { $regex: filters.keyword, $options: "i" };
       }
-
-      // Tạo tùy chọn sắp xếp
       let sort = {};
       if (sortOptions && sortOptions.field) {
         sort[sortOptions.field] = sortOptions.order === "desc" ? -1 : 1;
       }
-
-      // Thực hiện truy vấn với phân trang
       const totalCount = await collection.countDocuments(query);
       const images = await collection
         .find(query)

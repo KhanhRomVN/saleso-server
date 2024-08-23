@@ -6,33 +6,32 @@ const routes = [
   {
     method: "post",
     path: "/create",
-    handler: CategoryController.createCategory,
+    handler: CategoryController.createNewCategoryBranch,
   },
   {
-    method: "get",
-    path: "/get/:id",
-    handler: CategoryController.getCategoryById,
+    method: "post",
+    path: "/insert",
+    handler: CategoryController.insertCategoryIntoHierarchy,
   },
-  {
-    method: "get",
-    path: "/get/children/:value",
-    handler: CategoryController.getChildrenCategories,
-  },
-  {
-    method: "get",
-    path: "/root",
-    handler: CategoryController.getRootCategories,
-  },
-  { method: "get", path: "/all", handler: CategoryController.getCategories },
   {
     method: "put",
-    path: "/update/:id",
+    path: "/:category_id",
     handler: CategoryController.updateCategory,
   },
   {
     method: "delete",
-    path: "/delete/:id",
+    path: "/:category_id",
     handler: CategoryController.deleteCategory,
+  },
+  {
+    method: "get",
+    path: "/level/:level",
+    handler: CategoryController.getAllCategoriesByLevel,
+  },
+  {
+    method: "get",
+    path: "/children-of-parent/:parent_id",
+    handler: CategoryController.getAllCategoriesChildrenByParentId,
   },
 ];
 

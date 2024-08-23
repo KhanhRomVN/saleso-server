@@ -16,8 +16,13 @@ const routes = [
   },
   {
     method: "get",
-    path: "/ongoing",
-    handler: GalleryController.getOngoingGallery,
+    path: "/:image_id",
+    handler: GalleryController.getImage,
+  },
+  {
+    method: "put",
+    path: "/:image_id",
+    handler: GalleryController.updatePath,
   },
   {
     method: "post",

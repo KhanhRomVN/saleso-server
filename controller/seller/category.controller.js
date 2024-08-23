@@ -13,66 +13,79 @@ const handleRequest = async (req, res, operation) => {
   }
 };
 
-const addProductCount = async (categories) => {
-  return Promise.all(
-    categories.map(async (category) => {
-      const { count } = await ProductModel.getNumberProductByCategory(
-        category.name
-      );
-      return { ...category, number_product: count };
-    })
-  );
-};
+// Create one more function to create slug from name
+const createSlug = (name) => {};
 
 const CategoryController = {
-  getCategories: (req, res) =>
-    handleRequest(req, res, async () => {
-      const categories = await CategoryModel.getCategories();
-      return addProductCount(categories);
-    }),
-
-  getRootCategories: (req, res) =>
-    handleRequest(req, res, async () => {
-      const rootCategories = await CategoryModel.getRootCategories();
-      return addProductCount(rootCategories);
-    }),
-
-  createCategory: (req, res) =>
+  createNewCategoryBranch: (req, res) =>
     handleRequest(req, res, async (req) => {
-      const { path, description } = req.body;
-      if (!Array.isArray(path) || path.length === 0) {
-        throw new Error("Invalid category path");
-      }
-      return await CategoryModel.createCategory(path, description);
+      // image_uri, description are 2 optional value keys
+      const { name, image_uri, description, parent_id, level } = req.body;
+      const slug = createSlug(name);
+      const categoryData = {
+        name,
+        slug,
+        image_uri,
+        description,
+        parent_id,
+        level,
+      };
+      await CategoryModel.createNewCategoryBranch(categoryData);
+      return { success: "Create category successful" };
     }),
 
-  getCategoryById: (req, res) =>
-    handleRequest(
-      req,
-      res,
-      async (req) => await CategoryModel.getCategoryById(req.params.id)
-    ),
-
-  getChildrenCategories: (req, res) =>
-    handleRequest(
-      req,
-      res,
-      async (req) => await CategoryModel.getChildrenCategories(req.params.value)
-    ),
+  insertCategoryIntoHierarchy: (req, res) =>
+    handleRequest(req, res, async (req) => {
+      // image_uri, description are 2 optional value keys
+      const { name, image_uri, description, parent_id, level } = req.body;
+      const slug = createSlug(name);
+      const categoryData = {
+        name,
+        slug,
+        image_uri,
+        description,
+        parent_id,
+        level,
+      };
+      await CategoryModel.insertCategoryIntoHierarchy(categoryData);
+      return { success: "Create category successful" };
+    }),
 
   updateCategory: (req, res) =>
-    handleRequest(
-      req,
-      res,
-      async (req) => await CategoryModel.updateCategory(req.params.id, req.body)
-    ),
+    handleRequest(req, res, async (req) => {
+      const { category_id } = req.params;
+      const { name, image_uri, description } = req.body;
+      const categoryUpdate = { image_uri, description };
+
+      if (name) {
+        const slug = createSlug(name);
+        categoryUpdate.name = name;
+        categoryUpdate.slug = slug;
+      }
+
+      await CategoryModel.updateCategory(category_id, categoryUpdate);
+      return { success: "Update category successful" };
+    }),
 
   deleteCategory: (req, res) =>
-    handleRequest(
-      req,
-      res,
-      async (req) => await CategoryModel.deleteCategory(req.params.id)
-    ),
+    handleRequest(req, res, async (req) => {
+      // delete the category children that are children of the category just deleted
+      const { category_id } = req.params;
+      await CategoryModel.deleteCategory(category_id);
+      return { success: "Delete category successful" };
+    }),
+
+  getAllCategoriesByLevel: (req, res) =>
+    handleRequest(req, res, async (req) => {
+      const { level } = req.params;
+      return await CategoryModel.getAllCategoriesByLevel(level);
+    }),
+
+  getAllCategoriesChildrenByParentId: (req, res) =>
+    handleRequest(req, res, async (req) => {
+      const { parent_id } = req.params;
+      return await CategoryModel.getAllCategoriesChildrenByParentId(parent_id);
+    }),
 };
 
 module.exports = CategoryController;

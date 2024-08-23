@@ -50,9 +50,18 @@ const GalleryController = {
       return { success: "Delete image/gallery success" };
     }),
 
-  getOngoingGallery: (req, res) =>
+  getImage: (req, res) =>
     handleRequest(req, res, async (req) => {
-      return await GalleryModel.getOngoingImages();
+      const { image_id } = req.params;
+      return await GalleryModel.getImageById(image_id);
+    }),
+
+  updatePath: (req, res) =>
+    handleRequest(req, res, async (req) => {
+      const { image_id } = req.params;
+      const { path } = req.body;
+      const updatedImage = await GalleryModel.updateImagePath(image_id, path);
+      return { success: "Image path updated successfully", updatedImage };
     }),
 
   getFilteredAndSortedImages: (req, res) =>
