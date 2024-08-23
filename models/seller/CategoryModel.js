@@ -32,29 +32,114 @@ const handleDBOperation = async (operation) => {
 
 const CategoryModel = {
   createNewCategoryBranch: async (categoryData) => {
-    validateCategory(categoryData);
     return handleDBOperation(async (collection) => {
-      const result = await collection.insertOne(categoryData);
-      return result.insertedId;
+      validateCategory(categoryData);
+      await collection.insertOne(categoryData);
     });
   },
 
   insertCategoryIntoHierarchy: async (categoryData) => {
-    validateCategory(categoryData);
+    return handleDBOperation(async (collection) => {
+      const { name, slug, image_uri, description, parent_id, children_id, level } =
+        categoryData;
+
+      // Insert the new category
+      const newCategory = {
+        name,
+        slug,
+        image_uri,
+        description,
+        parent_id,
+        level,
+      };
+      const result = await collection.insertOne(newCategory);
+      const newCategoryId = result.insertedId.toString();
+
+      // Update the child's parent_id and increase its level
+      const childCategory = await collection.findOne({
+        _id: new ObjectId(children_id),
+      });
+      const levelDifference = level - childCategory.level + 1;
+
+      await collection.updateOne(
+        { _id: new ObjectId(children_id) },
+        {
+          $set: { parent_id: newCategoryId },
+          $inc: { level: levelDifference },
+        }
+      );
+
+      // Recursively update levels of all descendants
+      const updateDescendantLevels = async (parentId, levelIncrease) => {
+        const children = await collection
+          .find({ parent_id: parentId })
+          .toArray();
+        for (const child of children) {
+          await collection.updateOne(
+            { _id: child._id },
+            { $inc: { level: levelIncrease } }
+          );
+          await updateDescendantLevels(child._id.toString(), levelIncrease);
+        }
+      };
+
+      await updateDescendantLevels(children_id, levelDifference);
+
+      return {
+        success: "Category inserted into hierarchy successfully",
+        newCategoryId,
+      };
+    });
   },
 
   updateCategory: async (categoryId, categoryUpdate) => {
     return handleDBOperation(async (collection) => {
-      const result = await collection.updateOne(
+      await collection.updateOne(
         { _id: new ObjectId(categoryId) },
         { $set: { ...categoryUpdate, updated_at: new Date() } }
       );
-      return result.modifiedCount;
     });
   },
 
   deleteCategory: async (categoryId) => {
-    return handleDBOperation(async (collection) => {});
+    return handleDBOperation(async (collection) => {
+      const category = await collection.findOne({
+        _id: new ObjectId(categoryId),
+      });
+      if (!category) {
+        throw new Error("Category not found");
+      }
+
+      // Remove the category from its parent's children array
+      if (category.parent_id) {
+        await collection.updateOne(
+          { _id: new ObjectId(category.parent_id) },
+          { $pull: { children: categoryId } }
+        );
+      }
+
+      // Update children's parent_id to the deleted category's parent_id
+      await collection.updateMany(
+        { parent_id: categoryId },
+        { $set: { parent_id: category.parent_id } }
+      );
+
+      // Delete the category
+      await collection.deleteOne({ _id: new ObjectId(categoryId) });
+
+      // Recursively delete all descendants
+      const deleteDescendants = async (parentId) => {
+        const children = await collection
+          .find({ parent_id: parentId })
+          .toArray();
+        for (const child of children) {
+          await deleteDescendants(child._id.toString());
+          await collection.deleteOne({ _id: child._id });
+        }
+      };
+
+      await deleteDescendants(categoryId);
+    });
   },
 
   getAllCategoriesByLevel: async (level) => {

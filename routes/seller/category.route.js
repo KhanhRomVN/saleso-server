@@ -35,8 +35,8 @@ const routes = [
   },
 ];
 
-routes.forEach(({ method, path, handler }) => {
-  router[method](path, handler);
+routes.forEach(({ method, path, middleware = [], handler }) => {
+  router[method](path, ...middleware, handler);
 });
 
 module.exports = router;

@@ -14,7 +14,12 @@ const handleRequest = async (req, res, operation) => {
 };
 
 // Create one more function to create slug from name
-const createSlug = (name) => {};
+const createSlug = (name) => {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)+/g, "");
+};
 
 const CategoryController = {
   createNewCategoryBranch: (req, res) =>
@@ -36,8 +41,14 @@ const CategoryController = {
 
   insertCategoryIntoHierarchy: (req, res) =>
     handleRequest(req, res, async (req) => {
-      // image_uri, description are 2 optional value keys
-      const { name, image_uri, description, parent_id, level } = req.body;
+      const { name, image_uri, description, parent_id, level, children_id } =
+        req.body;
+
+      // Validate input
+      if (!name || !parent_id || !level || !children_id) {
+        throw { status: 400, message: "Missing required fields" };
+      }
+
       const slug = createSlug(name);
       const categoryData = {
         name,
@@ -46,9 +57,11 @@ const CategoryController = {
         description,
         parent_id,
         level,
+        children_id,
       };
+
       await CategoryModel.insertCategoryIntoHierarchy(categoryData);
-      return { success: "Create category successful" };
+      return { success: "Category inserted into hierarchy successfully" };
     }),
 
   updateCategory: (req, res) =>
