@@ -1,4 +1,4 @@
-const { MessageModel } = require("../models/index");
+const { MessageModel } = require("../models");
 
 module.exports = (io) => {
   io.on("connection", (socket) => {

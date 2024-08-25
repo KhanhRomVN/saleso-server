@@ -8,7 +8,7 @@ const cors = require("cors");
 const http = require("http");
 const socketIo = require("socket.io");
 
-const { connectElasticsearch } = require("./config/elasticsearchClient");
+// const { connectElasticsearch } = require("./config/elasticsearchClient");
 
 //* Redis
 const { connectRedis } = require("./config/redisClient");
