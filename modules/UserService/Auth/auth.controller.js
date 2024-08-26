@@ -103,43 +103,28 @@ const AuthController = {
   registerUserWithOTP: async (req, res) => {
     handleRequest(req, res, async (req) => {
       const { email, otp, username, password, role } = req.body;
-      console.log(req.body);
-
+      // OTP authentication
       const validOTP = await OTPModel.verifyOTP(email, otp, role);
       if (!validOTP) {
         throw new CustomError(400, "Invalid or expired OTP");
       }
 
-      const existingEmail = await UserModel.getUserByEmail(email, role);
-      const existingUsername = await UserModel.getUserByUsername(
-        username,
-        role
-      );
-
-      if (existingEmail) {
-        throw new CustomError(
-          400,
-          `You cannot register because the email <${email}> already exists`
-        );
-      }
-      if (existingUsername) {
-        throw new CustomError(
-          400,
-          `You cannot register because the username <${username}> already exists`
-        );
+      // Check if the username already exists or not
+      if (await UserModel.getUserByUsername(username, role)) {
+        return { error: "This username is already in use" };
       }
 
+      // password encryption
       const hashedPassword = await bcryptjs.hash(password, 10);
       const userData = {
         username,
         email,
         role,
-        emailConfirmed: "true",
         password: hashedPassword,
         register_at: new Date(),
       };
 
-      const user = await UserModel.registerUser(email, role, userData);
+      const user = await UserModel.registerUser(userData, role);
       return { message: "User registered successfully", user_id: user };
     });
   },

@@ -88,11 +88,11 @@ const UserModel = {
     }, role);
   },
 
-  updateForgetPassword: async (user_id, newPassword, role) => {
+  updateForgetPassword: async (email, newPassword, role) => {
     return handleDBOperation(async (collection) => {
       const hashedNewPassword = await bcrypt.hash(newPassword, saltRounds);
       return await collection.updateOne(
-        { _id: new ObjectId(user_id) },
+        { email: email },
         { $set: { password: hashedNewPassword } }
       );
     }, role);

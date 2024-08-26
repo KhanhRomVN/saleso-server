@@ -1,4 +1,4 @@
-const { CategoryModel, ProductModel } = require("../../../models");
+const { CategoryModel } = require("../../../models");
 const logger = require("../../../config/logger");
 
 const handleRequest = async (req, res, operation) => {

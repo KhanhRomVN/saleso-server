@@ -1,4 +1,4 @@
-const { getDB } = require("../../../../config/mongoDB");
+const { getDB } = require("../../../config/mongoDB");
 const Joi = require("joi");
 const { ObjectId } = require("mongodb");
 
@@ -175,7 +175,10 @@ const CategoryModel = {
           break;
         }
 
-        result.push(currentCategoryId);
+        result.push({
+          category_id: currentCategoryId,
+          category_name: category.name, // Assuming the name field exists in your category document
+        });
         currentCategoryId = category.parent_id;
       }
 

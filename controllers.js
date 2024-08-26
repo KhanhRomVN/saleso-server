@@ -15,6 +15,12 @@ const InvoiceController = require("./modules/PaymentService/Invoice/invoice.cont
 const PaymentController = require("./modules/PaymentService/Payment/payment.controller");
 // Notification Service
 const NotificationController = require("./modules/NotificationService/Notification/notification.controller");
+// Analytic Service
+const ProductAnalyticController = require("./modules/AnalyticsService/ProductAnalytic/product_analytic.controller");
+const DiscountAnalyticController = require("./modules/AnalyticsService/DiscountAnalytic/discount_analytic.controller");
+const CustomerAnalyticController = require("./modules/AnalyticsService/CustomerAnalytic/customer_analytic.controller");
+const SellerAnalyticController = require("./modules/AnalyticsService/SellerAnalytic/seller_analytic.controller");
+const GeneralAnalyticController = require("./modules/AnalyticsService/GeneralAnalytic/general_analytic.controller");
 // Other Service
 const ConservationController = require("./modules/OtherService/Chat/conservation.controller");
 const GalleryController = require("./modules/OtherService/Gallery/gallery.controller");
@@ -34,4 +40,9 @@ module.exports = {
   NotificationController,
   UserController,
   GalleryController,
+  ProductAnalyticController,
+  DiscountAnalyticController,
+  CustomerAnalyticController,
+  SellerAnalyticController,
+  GeneralAnalyticController,
 };

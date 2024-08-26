@@ -14,7 +14,7 @@ const routes = [
   {
     method: "post",
     path: "/register-otp",
-    handler: AuthController.registerUserWithOTP,
+    handler: AuthController.registerUserWithOTP,  
   },
   {
     method: "post",

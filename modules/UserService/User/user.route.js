@@ -11,14 +11,8 @@ const routes = [
   // Only used when creating a new account
   {
     method: "post",
-    path: "/create/customer-detail",
-    handler: UserController.createCustomerDetail,
-  },
-  // Only used when creating a new account
-  {
-    method: "post",
-    path: "/create/seller-detail",
-    handler: UserController.createSellerDetail,
+    path: "/create/user-detail/:role",
+    handler: UserController.createCDetail,
   },
   {
     method: "get",
@@ -28,15 +22,9 @@ const routes = [
   },
   {
     method: "get",
-    path: "/customer-detail",
-    middleware: [authCustomerToken],
-    handler: UserController.getCustomerDetail,
-  },
-  {
-    method: "get",
-    path: "/seller-detail",
-    middleware: [authSellerToken],
-    handler: UserController.getSellerDetail,
+    path: "/user-detail",
+    middleware: [authToken],
+    handler: UserController.getDetail,
   },
   {
     method: "put",
@@ -46,15 +34,9 @@ const routes = [
   },
   {
     method: "put",
-    path: "/update/customer-detail",
-    middleware: [authCustomerToken],
-    handler: UserController.updateCustomerDetail,
-  },
-  {
-    method: "put",
-    path: "/update/seller-detail",
-    middleware: [authSellerToken],
-    handler: UserController.updateSellerDetail,
+    path: "/update/user-detail",
+    middleware: [authToken],
+    handler: UserController.updateDetail,
   },
   {
     method: "put",
@@ -73,14 +55,12 @@ const routes = [
   {
     method: "post",
     path: "/forget/password",
-    middleware: [authToken],
     handler: UserController.forgetPassword,
   },
   // Update forgotten password with OTP and new password
   {
     method: "post",
     path: "/update/forget-password",
-    middleware: [authToken],
     handler: UserController.updateForgetPassword,
   },
 ];
