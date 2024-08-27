@@ -49,6 +49,7 @@ const InvoiceModel = {
           $set: { invoice_id },
         }
       );
+      return collection.findOne({ invoice_id });
     });
   },
 
@@ -62,6 +63,19 @@ const InvoiceModel = {
   getPayment: async (order_id) => {
     return handleDBOperation(async (collection) => {
       return await collection.findOne({ order_id: order_id });
+    });
+  },
+
+  updatePaymentStatus: async (payment_id, newStatus) => {
+    return handleDBOperation(async (collection) => {
+      const result = await collection.updateOne(
+        { _id: new ObjectId(payment_id) },
+        { $set: { payment_status: newStatus, updated_at: new Date() } }
+      );
+      if (result.modifiedCount === 0) {
+        throw new Error("Payment not found or status not changed");
+      }
+      return { message: "Payment status updated successfully" };
     });
   },
 };

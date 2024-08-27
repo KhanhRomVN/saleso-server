@@ -57,28 +57,6 @@ const FeedbackModel = {
       return await collection.findOne({ _id: new ObjectId(feedback_id) });
     }),
 
-  getAllFeedbacks: async (start, end, ownerId) =>
-    handleDBOperation(async (collection) => {
-      const feedbacks = await collection
-        .find({ owner_id: ownerId })
-        .sort({ createdAt: -1 })
-        .skip(start - 1)
-        .limit(end - start + 1)
-        .toArray();
-      return feedbacks;
-    }),
-
-  getCustomerFeedbacks: async (userId, start, end, ownerId) =>
-    handleDBOperation(async (collection) => {
-      const feedbacks = await collection
-        .find({ user_id: userId, owner_id: ownerId })
-        .sort({ createdAt: -1 })
-        .skip(start - 1)
-        .limit(end - start + 1)
-        .toArray();
-      return feedbacks;
-    }),
-
   getProductFeedbacks: async (productId, start, end) =>
     handleDBOperation(async (collection) => {
       const feedbacks = await collection
@@ -92,10 +70,11 @@ const FeedbackModel = {
 
   getFilteredFeedbacks: async (params) =>
     handleDBOperation(async (collection) => {
-      const { owner_id, product_id, rating, start, end } = params;
+      const { owner_id, product_id, user_id, rating, start, end } = params;
 
       const filters = { owner_id };
       if (product_id) filters.product_id = product_id;
+      if (user_id) filters.user_id = user_id;
       if (rating) filters.rating = rating;
 
       const feedbacks = await collection

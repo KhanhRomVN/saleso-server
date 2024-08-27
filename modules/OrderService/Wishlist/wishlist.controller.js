@@ -1,4 +1,4 @@
-const { WishlistModel } = require("../../../models");
+const { WishlistModel, ProductAnalyticModel } = require("../../../models");
 const logger = require("../../../config/logger");
 
 const handleRequest = async (req, res, operation) => {
@@ -24,7 +24,9 @@ const WishlistController = {
     handleRequest(req, res, async (req) => {
       const customer_id = req.user._id.toString();
       const { product_id } = req.params;
-      return await WishlistModel.addToWishlist(customer_id, product_id);
+      await WishlistModel.addToWishlist(customer_id, product_id);
+      await ProductAnalyticModel.updateWishlistProduct(product_id);
+      return { success: "Added product to wishlist successfully" };
     }),
 
   removeFromWishlist: (req, res) =>

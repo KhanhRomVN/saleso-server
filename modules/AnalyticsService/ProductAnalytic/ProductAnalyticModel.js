@@ -34,12 +34,100 @@ const handleDBOperation = async (operation) => {
   }
 };
 
-const CartModel = {
-  viewProduct: async (product_id) => {
+const ProductAnalyticModel = {
+  // Create analytics information (only used when creating new products)
+  createNewProductAnalytic: async (productAnalyticData) => {
     return handleDBOperation(async (collection) => {
-      await collection.updateOne({ product_id });
+      const { error } = COLLECTION_SCHEMA.validate(productAnalyticData);
+      if (error)
+        throw new Error(
+          `Validation error: ${error.details.map((d) => d.message).join(", ")}`
+        );
+
+      return await collection.insertOne(productAnalyticData);
+    });
+  },
+
+  // Updated when users click to view the product
+  updateViewProduct: async (product_id) => {
+    return handleDBOperation(async (collection) => {
+      return await collection.updateOne(
+        { product_id },
+        { $inc: { total_view: 1 } }
+      );
+    });
+  },
+
+  // Updated when users add products to their wishlist
+  updateWishlistProduct: async (product_id) => {
+    return handleDBOperation(async (collection) => {
+      return await collection.updateOne(
+        { product_id },
+        { $inc: { total_wishlist: 1 } }
+      );
+    });
+  },
+
+  // Updated when a user adds a product to their cart
+  updateCartProduct: async (product_id) => {
+    return handleDBOperation(async (collection) => {
+      return await collection.updateOne(
+        { product_id },
+        { $inc: { total_cart: 1 } }
+      );
+    });
+  },
+
+  // Updated when invoices and orders are successfully paid
+  updateSellProduct: async (product_id, price, country) => {
+    return handleDBOperation(async (collection) => {
+      const update = {
+        $inc: {
+          total_sell: 1,
+          total_revenue: price,
+          "country_destruction.$[elem].count": 1,
+        },
+        $setOnInsert: {
+          "country_destruction.$[elem]": { country, count: 1 },
+        },
+      };
+
+      const options = {
+        arrayFilters: [{ "elem.country": country }],
+        upsert: true,
+      };
+
+      return await collection.updateOne({ product_id }, update, options);
+    });
+  },
+
+  // Updated when users receive discounts or offers for this product
+  updateDiscountUsed: async (product_id) => {
+    return handleDBOperation(async (collection) => {
+      return await collection.updateOne(
+        { product_id },
+        { $inc: { discount_used: 1 } }
+      );
+    });
+  },
+
+  // Updated when the user wants to return the goods (used after successful payment)
+  updateReturnProduct: async (product_id) => {
+    return handleDBOperation(async (collection) => {
+      const result = await collection.findOneAndUpdate(
+        { product_id },
+        { $inc: { total_return: 1 } },
+        { returnOriginal: false }
+      );
+
+      // Update return rate
+      const returnRate = result.value.total_return / result.value.total_sell;
+      await collection.updateOne(
+        { product_id },
+        { $set: { return_rate: returnRate } }
+      );
     });
   },
 };
 
-module.exports = CartModel;
+module.exports = ProductAnalyticModel;

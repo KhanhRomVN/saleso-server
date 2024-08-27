@@ -13,22 +13,24 @@ const handleRequest = async (req, res, operation) => {
   }
 };
 
-const CartController = {
-  // Only used when the seller creates a new product
+const ProductAnalyticController = {
   createNewProductAnalytic: async (product_id) => {
-    // tạo thêm month và year
+    const currentDate = new Date();
+    const month = currentDate.getMonth() + 1;
+    const year = currentDate.getFullYear();
     const productAnalyticData = {
       product_id,
       month,
       year,
       total_view: 0,
-      total_favorite: 0,
+      total_wishlist: 0,
       total_cart: 0,
       total_sell: 0,
       total_revenue: 0,
       discount_used: 0,
       total_return: 0,
       return_rate: 0,
+      country_destruction: [],
     };
     await ProductAnalyticModel.createNewProductAnalytic(productAnalyticData);
   },
@@ -36,17 +38,8 @@ const CartController = {
   updateViewProduct: (req, res) =>
     handleRequest(req, res, async (req) => {
       const { product_id } = req.params;
-      await ProductAnalyticModel.viewProduct(product_id);
+      await ProductAnalyticModel.updateViewProduct(product_id);
     }),
-
-  // adds value when customers add products to their wishlist
-  updateWishlistProduct: async (product_id) => {},
-  // adds value when customers add products to their cart list
-  updateCartProduct: async (product_id) => {},
-  // Add more value when customers place orders successfully
-  updateSellProduct: async (product_id, order_id, country) => {},
-  updateDiscountUsed: async (product_id) => {},
-  updateReturnProduct: async (product_id) => {},
 };
 
-module.exports = CartController;
+module.exports = ProductAnalyticController;

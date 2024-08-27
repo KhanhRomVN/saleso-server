@@ -1,4 +1,8 @@
-const { CartModel, ProductModel } = require("../../../models");
+const {
+  CartModel,
+  ProductModel,
+  ProductAnalyticModel,
+} = require("../../../models");
 const logger = require("../../../config/logger");
 
 const handleRequest = async (req, res, operation) => {
@@ -68,6 +72,7 @@ const CartController = {
     handleRequest(req, res, async (req) => {
       const customer_id = req.user._id.toString();
       await CartModel.addItem(customer_id, req.body);
+      await ProductAnalyticModel.updateCartProduct(req.body.product_id);
       return { message: "Item added to cart successfully" };
     }),
 

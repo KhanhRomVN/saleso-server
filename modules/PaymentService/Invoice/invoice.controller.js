@@ -49,9 +49,16 @@ const InvoiceController = {
       };
 
       // create invoice
-      const invoice = await InvoiceModel.createInvoice(invoiceData);
-      await PaymentModel.createInvoice(invoice, order_id);
+      const invoice = await InvoiceModel.createInvoice(invoiceData); // return invoice_id = invoice
+      // payment and invoice are linked together
+      const payment = await PaymentModel.createInvoice(invoice, order_id);
 
+      //* vì project này là project thảm khảo nên không thể code được hệ thống tự động xử lý payment nên tôi sẽ mặc định là payment sẽ thanh toán thành công và invoice sẽ xử lý thành công
+      await PaymentModel.updatePaymentStatus(
+        payment._id.toString(),
+        "completed"
+      );
+      await InvoiceModel.updateInvoiceStatus(invoice, "success");
       return { message: "Create invoice successfully" };
     }),
 

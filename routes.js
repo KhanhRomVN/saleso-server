@@ -13,16 +13,14 @@ const order = require("./modules/OrderService/Order/order.route");
 // Payment Service
 const invoice = require("./modules/PaymentService/Invoice/invoice.route");
 const payment = require("./modules/PaymentService/Payment/payment.route");
+const reversal = require("./modules/PaymentService/Reversal/reversal.route");
+const refund = require("./modules/PaymentService/Refund/refund.route");
 // Notification Service
 const notification = require("./modules/NotificationService/Notification/notification.route");
 // Search Service
 const elastic = require("./modules/SearchService/Elastic/elasticsearch.route");
 // Analytic Service
 const product_analytic = require("./modules/AnalyticsService/ProductAnalytic/product_analytic.route");
-const discount_analytic = require("./modules/AnalyticsService/DiscountAnalytic/discount_analytic.route");
-const customer_analytic = require("./modules/AnalyticsService/CustomerAnalytic/customer_analytic.route");
-const seller_analytic = require("./modules/AnalyticsService/SellerAnalytic/seller_analytic.route");
-const general_analytic = require("./modules/AnalyticsService/GeneralAnalytic/general_analytic.route");
 // Other Service
 const chat = require("./modules/OtherService/Chat/chat.route");
 const gallery = require("./modules/OtherService/Gallery/gallery.route");
@@ -39,13 +37,11 @@ module.exports = {
   invoice,
   notification,
   order,
+  reversal,
+  refund,
   payment,
   product,
   user,
   wishlist,
   product_analytic,
-  discount_analytic,
-  customer_analytic,
-  seller_analytic,
-  general_analytic,
 };

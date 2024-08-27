@@ -2,26 +2,25 @@ const { getDB } = require("../../../config/mongoDB");
 const { ObjectId } = require("mongodb");
 const Joi = require("joi");
 
-const COLLECTION_NAME = "product_analytic";
+const COLLECTION_NAME = "seller_analytic";
 const COLLECTION_SCHEMA = Joi.object({
-  product_id: Joi.string().required(),
+  seller_id: Joi.string().required(),
   month: Joi.number().required(),
   year: Joi.number().required(),
-  view: Joi.number().required(),
-  total_favorite: Joi.number().required(),
-  total_cart: Joi.number().required(),
-  total_sell: Joi.number().required(),
-  total_revenue: Joi.number().required(),
-  discount_used: Joi.number().required(),
-  total_return: Joi.number().required(),
-  return_rate: Joi.number().required(),
-  // Statistics of countries that have purchased products
-  country_destruction: Joi.array().items(
-    Joi.object({
-      country: Joi.string().required(),
-      count: Joi.number().required(),
-    })
-  ),
+  // Sales array to store total revenue and total products sold for each day in a month
+  sales: Joi.array()
+    .items(
+      Joi.object({
+        day: Joi.number().required(),
+        // total revenue for the day
+        revenue: Joi.number().required(),
+        // total products sold during the day
+        sold: Joi.number().required(),
+      })
+    )
+    .min(29)
+    .max(31)
+    .required(),
 }).options({ abortEarly: false });
 
 const handleDBOperation = async (operation) => {
@@ -34,70 +33,83 @@ const handleDBOperation = async (operation) => {
   }
 };
 
-const CartModel = {
-  getCart: async (customer_id) => {
+const SellerAnalyticModel = {
+  // Used when creating a new sales account
+  createSellerAnalytic: async (seller_id) => {
     return handleDBOperation(async (collection) => {
-      const cart = await collection.findOne({
-        customer_id: customer_id,
+      const currentDate = new Date();
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth() + 1; // JavaScript months are 0-indexed
+      const daysInMonth = new Date(year, month, 0).getDate();
+
+      const sales = Array.from({ length: daysInMonth }, (_, i) => ({
+        day: i + 1,
+        revenue: 0,
+        sold: 0,
+      }));
+
+      const newAnalytic = {
+        seller_id,
+        year,
+        month,
+        sales,
+      };
+
+      const { error } = COLLECTION_SCHEMA.validate(newAnalytic);
+      if (error)
+        throw new Error(
+          `Validation error: ${error.details.map((d) => d.message).join(", ")}`
+        );
+
+      return await collection.insertOne(newAnalytic);
+    });
+  },
+
+  // Used when the customer has successfully paid for the order and has successfully delivered the goods
+  updateSellerAnalytic: async (seller_id, price, quantity) => {
+    return handleDBOperation(async (collection) => {
+      const currentDate = new Date();
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth() + 1;
+      const day = currentDate.getDate();
+
+      const filter = { seller_id, year, month };
+      const update = {
+        $inc: {
+          [`sales.${day - 1}.revenue`]: price,
+          [`sales.${day - 1}.sold`]: quantity,
+        },
+      };
+
+      const result = await collection.updateOne(filter, update, {
+        upsert: true,
       });
-      return cart || { customer_id, items: [] };
-    });
-  },
 
-  addItem: async (customer_id, cartData) => {
-    return handleDBOperation(async (collection) => {
-      const { error } = CART_ITEM_SCHEMA.validate(cartData);
-      if (error) throw new Error(error.details[0].message);
+      if (result.upsertedCount > 0) {
+        // If a new document was created, initialize it properly
+        const daysInMonth = new Date(year, month, 0).getDate();
+        const sales = Array.from({ length: daysInMonth }, (_, i) => ({
+          day: i + 1,
+          revenue: i + 1 === day ? price : 0,
+          sold: i + 1 === day ? quantity : 0,
+        }));
 
-      await collection.updateOne(
-        { customer_id: customer_id },
-        {
-          $push: { items: cartData },
-          $setOnInsert: { createdAt: new Date() },
-          $set: { updatedAt: new Date() },
-        },
-        { upsert: true }
-      );
-    });
-  },
+        const newAnalytic = { seller_id, year, month, sales };
+        const { error } = COLLECTION_SCHEMA.validate(newAnalytic);
+        if (error)
+          throw new Error(
+            `Validation error: ${error.details.map((d) => d.message).join(", ")}`
+          );
 
-  removeItem: async (customer_id, product_id) => {
-    return handleDBOperation(async (collection) => {
-      await collection.updateOne(
-        { customer_id: new ObjectId(customer_id) },
-        {
-          $pull: { items: { product_id: new ObjectId(product_id) } },
-          $set: { updatedAt: new Date() },
-        }
-      );
-    });
-  },
+        await collection.updateOne(
+          { _id: result.upsertedId },
+          { $set: newAnalytic }
+        );
+      }
 
-  updateItemQuantity: async (customer_id, product_id, quantity) => {
-    return handleDBOperation(async (collection) => {
-      const { error } = CART_ITEM_SCHEMA.validate({ product_id, quantity });
-      if (error) throw new Error(error.details[0].message);
-
-      await collection.updateOne(
-        {
-          customer_id: customer_id,
-          "items.product_id": product_id,
-        },
-        {
-          $set: { "items.$.quantity": quantity, updatedAt: new Date() },
-        }
-      );
-    });
-  },
-
-  clearCart: async (customer_id) => {
-    return handleDBOperation(async (collection) => {
-      await collection.updateOne(
-        { customer_id: customer_id },
-        { $set: { items: [], updatedAt: new Date() } }
-      );
+      return result;
     });
   },
 };
 
-module.exports = CartModel;
+module.exports = SellerAnalyticModel;

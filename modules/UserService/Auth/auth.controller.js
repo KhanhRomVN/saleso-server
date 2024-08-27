@@ -1,4 +1,4 @@
-const { UserModel, OTPModel } = require("../../../models");
+const { UserModel, OTPModel, SellerAnalyticModel } = require("../../../models");
 const transporter = require("../../../config/nodemailerConfig");
 const { CustomError } = require("../../../middleware/errorHandler");
 const bcryptjs = require("bcryptjs");
@@ -125,6 +125,7 @@ const AuthController = {
       };
 
       const user = await UserModel.registerUser(userData, role);
+      await SellerAnalyticModel.createSellerAnalytic(user);
       return { message: "User registered successfully", user_id: user };
     });
   },

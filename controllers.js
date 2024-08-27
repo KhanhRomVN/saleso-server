@@ -13,14 +13,12 @@ const WishlistController = require("./modules/OrderService/Wishlist/wishlist.con
 // Payment Service
 const InvoiceController = require("./modules/PaymentService/Invoice/invoice.controller");
 const PaymentController = require("./modules/PaymentService/Payment/payment.controller");
+const ReversalController = require("./modules/PaymentService/Reversal/reversal.controller");
+const RefundController = require("./modules/PaymentService/Refund/refund.controller");
 // Notification Service
 const NotificationController = require("./modules/NotificationService/Notification/notification.controller");
 // Analytic Service
 const ProductAnalyticController = require("./modules/AnalyticsService/ProductAnalytic/product_analytic.controller");
-const DiscountAnalyticController = require("./modules/AnalyticsService/DiscountAnalytic/discount_analytic.controller");
-const CustomerAnalyticController = require("./modules/AnalyticsService/CustomerAnalytic/customer_analytic.controller");
-const SellerAnalyticController = require("./modules/AnalyticsService/SellerAnalytic/seller_analytic.controller");
-const GeneralAnalyticController = require("./modules/AnalyticsService/GeneralAnalytic/general_analytic.controller");
 // Other Service
 const ConservationController = require("./modules/OtherService/Chat/conservation.controller");
 const GalleryController = require("./modules/OtherService/Gallery/gallery.controller");
@@ -30,6 +28,8 @@ module.exports = {
   FeedbackController,
   OrderController,
   WishlistController,
+  ReversalController,
+  RefundController,
   CategoryController,
   DiscountController,
   InvoiceController,
@@ -41,8 +41,4 @@ module.exports = {
   UserController,
   GalleryController,
   ProductAnalyticController,
-  DiscountAnalyticController,
-  CustomerAnalyticController,
-  SellerAnalyticController,
-  GeneralAnalyticController,
 };

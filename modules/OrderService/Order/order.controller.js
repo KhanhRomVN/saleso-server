@@ -1,4 +1,9 @@
-const { OrderModel, ProductModel, PaymentModel } = require("../../../models");
+const {
+  OrderModel,
+  ProductModel,
+  PaymentModel,
+  CartModel,
+} = require("../../../models");
 const logger = require("../../../config/logger");
 const { error } = require("winston");
 
@@ -71,7 +76,11 @@ const OrderController = {
       );
 
       // drop product cart
-
+      await Promise.all(
+        orderItems.map(async (item) => {
+          await CartModel.removeItem(item.customer_id, item.product_id);
+        })
+      );
       return { message: "Create Order Successful" };
     }),
 

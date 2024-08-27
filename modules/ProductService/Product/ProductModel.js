@@ -16,7 +16,14 @@ const COLLECTION_SCHEMA = Joi.object({
   countryOfOrigin: Joi.string().required(),
   brand: Joi.string(),
   stock: Joi.number().min(0),
-  categories: Joi.array().items(Joi.string()).required(),
+  categories: Joi.array()
+    .items(
+      Joi.object({
+        category_id: Joi.string().required(),
+        category_name: Joi.string().required(),
+      })
+    )
+    .required(),
   upcoming_discounts: Joi.array().items(Joi.string()),
   ongoing_discounts: Joi.array().items(Joi.string()),
   expired_discounts: Joi.array().items(Joi.string()),
@@ -88,11 +95,7 @@ const ProductModel = {
 
   getListProductBySellerId: async (seller_id) =>
     handleDBOperation(async (collection) => {
-      if (!ObjectId.isValid(seller_id)) throw new Error("Invalid seller ID");
-      const products = await collection
-        .find({ seller_id: seller_id })
-        .toArray();
-      return products;
+      return await collection.find({ seller_id: seller_id }).toArray();
     }),
 
   getNumberProductByCategory: async (category) =>

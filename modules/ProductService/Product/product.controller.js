@@ -2,8 +2,10 @@ const {
   ProductModel,
   DiscountModel,
   FeedbackModel,
+  ProductAnalyticModel,
 } = require("../../../models");
 const logger = require("../../../config/logger");
+const ProductAnalyticController = require("../../AnalyticsService/ProductAnalytic/product_analytic.controller");
 // const { redisClient } = require("../../../config/redisClient");
 // const { client } = require("../../../config/elasticsearchClient");
 // const { searchProducts } = require("../../../services/productSearch");
@@ -67,7 +69,7 @@ const ProductController = {
       };
 
       await ProductModel.createProduct(productData, req.user._id.toString());
-      // await ProductModel.syncProductToES(newProduct._id);
+      await ProductAnalyticController.createNewProductAnalytic(product_id);
       return { message: "Create Product Successfully" };
     }),
 
