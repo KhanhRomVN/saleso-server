@@ -2,13 +2,10 @@ const {
   ProductModel,
   DiscountModel,
   FeedbackModel,
-  ProductAnalyticModel,
 } = require("../../../models");
 const logger = require("../../../config/logger");
 const ProductAnalyticController = require("../../AnalyticsService/ProductAnalytic/product_analytic.controller");
-// const { redisClient } = require("../../../config/redisClient");
-// const { client } = require("../../../config/elasticsearchClient");
-// const { searchProducts } = require("../../../services/productSearch");
+const { client } = require("../../../config/elasticsearchClient");
 
 const createDescriptionDiscount = (discount) => {
   if (!discount) return null;
@@ -57,20 +54,17 @@ const checkUserOwnership = async (product_id, seller_id) => {
 const ProductController = {
   createProduct: (req, res) =>
     handleRequest(req, res, async (req) => {
-      const categoryNames = req.body.categories.map(
-        (category) => category.name
+      const result = await ProductModel.createProduct(
+        req.body,
+        req.user._id.toString()
       );
-      const productData = {
-        ...req.body,
-        categories: categoryNames,
-        upcoming_discounts: [],
-        ongoing_discounts: [],
-        expired_discounts: [],
+      await ProductAnalyticController.createNewProductAnalytic(
+        result.productId.toString()
+      );
+      return {
+        message: "Create Product Successfully",
+        productId: result.productId,
       };
-
-      await ProductModel.createProduct(productData, req.user._id.toString());
-      await ProductAnalyticController.createNewProductAnalytic(product_id);
-      return { message: "Create Product Successfully" };
     }),
 
   getProductById: (req, res) =>
@@ -302,158 +296,207 @@ const ProductController = {
       return productsByCategory;
     }),
 
-  // filterProducts: async (req, res) =>
-  //   handleRequest(req, res, async (req) => {
-  //     try {
-  //       const {
-  //         name,
-  //         price,
-  //         sortByPrice,
-  //         countryOfOrigin,
-  //         brand,
-  //         units_sold,
-  //         sortByUnitsSold,
-  //         attributes,
-  //         categories,
-  //       } = req.body;
+  searchProduct: (req, res) =>
+    handleRequest(req, res, async (req) => {
+      const { value } = req.body;
+      const { page = 1, limit = 10 } = req.query;
 
-  //       let query = {
-  //         bool: {
-  //           must: [],
-  //           filter: [],
-  //         },
-  //       };
+      let query = {
+        bool: {
+          should: [],
+        },
+      };
 
-  //       // Filter by name
-  //       if (name) {
-  //         query.bool.must.push({
-  //           match: {
-  //             name: {
-  //               query: name,
-  //               fuzziness: "AUTO",
-  //             },
-  //           },
-  //         });
-  //       }
+      if (value) {
+        query.bool.should.push(
+          {
+            match: {
+              name: {
+                query: value,
+                fuzziness: "AUTO",
+              },
+            },
+          },
+          {
+            match: {
+              tags: {
+                query: value,
+                fuzziness: "AUTO",
+              },
+            },
+          }
+        );
+      }
 
-  //       // Filter by price
-  //       if (price && (price.min !== undefined || price.max !== undefined)) {
-  //         const priceRange = {};
-  //         if (price.min !== undefined) priceRange.gte = price.min;
-  //         if (price.max !== undefined) priceRange.lte = price.max;
-  //         query.bool.filter.push({ range: { price: priceRange } });
-  //       }
+      const result = await client.search({
+        index: "products",
+        body: {
+          query: query,
+          from: (page - 1) * limit,
+          size: limit,
+        },
+      });
 
-  //       // Filter by country of origin
-  //       if (countryOfOrigin) {
-  //         query.bool.filter.push({
-  //           term: { countryOfOrigin: countryOfOrigin },
-  //         });
-  //       }
+      const products = result.hits.hits.map((hit) => ({
+        _id: hit._id,
+        ...hit._source,
+      }));
 
-  //       // Filter by brand
-  //       if (brand) {
-  //         query.bool.filter.push({ term: { brand: brand } });
-  //       }
+      return {
+        total: result.hits.total.value,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        products: products,
+      };
+    }),
 
-  //       // Filter by units sold
-  //       if (
-  //         units_sold &&
-  //         (units_sold.min !== undefined || units_sold.max !== undefined)
-  //       ) {
-  //         const unitsRange = {};
-  //         if (units_sold.min !== undefined) unitsRange.gte = units_sold.min;
-  //         if (units_sold.max !== undefined) unitsRange.lte = units_sold.max;
-  //         query.bool.filter.push({ range: { units_sold: unitsRange } });
-  //       }
+  filterProducts: (req, res) =>
+    handleRequest(req, res, async (req) => {
+      const {
+        value,
+        countryOfOrigin,
+        brand,
+        priceRange,
+        unitsSoldRange,
+        ratingRange,
+        sortBy,
+        sortOrder,
+        page = 1,
+        limit = 12,
+      } = req.body;
 
-  //       // Filter by attributes
-  //       if (attributes) {
-  //         if (Array.isArray(attributes)) {
-  //           // Case: ["color"]
-  //           attributes.forEach((attr) => {
-  //             query.bool.filter.push({
-  //               nested: {
-  //                 path: "attributes",
-  //                 query: {
-  //                   bool: {
-  //                     must: [{ exists: { field: `attributes.${attr}` } }],
-  //                   },
-  //                 },
-  //               },
-  //             });
-  //           });
-  //         } else if (typeof attributes === "object") {
-  //           // Case: { "color": [{ "value": "red" }] }
-  //           Object.entries(attributes).forEach(([key, values]) => {
-  //             if (Array.isArray(values)) {
-  //               values.forEach((value) => {
-  //                 query.bool.filter.push({
-  //                   nested: {
-  //                     path: "attributes",
-  //                     query: {
-  //                       bool: {
-  //                         must: [
-  //                           { match: { [`attributes.${key}`]: value.value } },
-  //                         ],
-  //                       },
-  //                     },
-  //                   },
-  //                 });
-  //               });
-  //             }
-  //           });
-  //         }
-  //       }
+      let query = {
+        bool: {
+          should: [],
+          must: [],
+          filter: [],
+        },
+      };
 
-  //       // Filter by categories
-  //       if (categories && Array.isArray(categories)) {
-  //         query.bool.filter.push({
-  //           terms: { categories: categories },
-  //         });
-  //       }
+      if (value) {
+        query.bool.should.push(
+          {
+            match: {
+              name: {
+                query: value,
+                fuzziness: "AUTO",
+              },
+            },
+          },
+          {
+            match: {
+              tags: {
+                query: value,
+                fuzziness: "AUTO",
+              },
+            },
+          }
+        );
+      }
 
-  //       // Sorting
-  //       let sort = [];
-  //       if (sortByPrice) {
-  //         sort.push({ price: { order: sortByPrice } });
-  //       }
-  //       if (sortByUnitsSold) {
-  //         sort.push({ units_sold: { order: sortByUnitsSold } });
-  //       }
+      if (countryOfOrigin) {
+        query.bool.filter.push({
+          term: { countryOfOrigin: countryOfOrigin },
+        });
+      }
 
-  //       // Perform the search
-  //       const result = await client.search({
-  //         index: "products",
-  //         body: {
-  //           query: query,
-  //           sort: sort,
-  //         },
-  //       });
+      if (brand) {
+        query.bool.filter.push({
+          term: { brand: brand },
+        });
+      }
 
-  //       // Process and return the results
-  //       const products = result.hits.hits.map((hit) => ({
-  //         _id: hit._id,
-  //         ...hit._source,
-  //       }));
+      if (priceRange) {
+        query.bool.filter.push({
+          range: {
+            price: {
+              gte: priceRange.min,
+              lte: priceRange.max,
+            },
+          },
+        });
+      }
 
-  //       res.json({
-  //         total: result.hits.total.value,
-  //         products: products,
-  //       });
-  //     } catch (error) {
-  //       console.error("Error filtering products:", error);
-  //       res.status(500).json({ error: "Internal server error" });
-  //     }
-  //   }),
+      if (unitsSoldRange) {
+        query.bool.filter.push({
+          range: {
+            units_sold: {
+              gte: unitsSoldRange.min,
+              lte: unitsSoldRange.max,
+            },
+          },
+        });
+      }
+
+      if (ratingRange) {
+        query.bool.filter.push({
+          range: {
+            rating: {
+              gte: ratingRange.min,
+              lte: ratingRange.max,
+            },
+          },
+        });
+      }
+
+      let sort = [];
+      if (sortBy) {
+        sort.push({ [sortBy]: { order: sortOrder || "desc" } });
+      }
+
+      const result = await client.search({
+        index: "products",
+        body: {
+          query: query,
+          sort: sort,
+          from: (page - 1) * limit,
+          size: limit,
+        },
+      });
+
+      const products = result.hits.hits.map((hit) => ({
+        _id: hit._id,
+        ...hit._source,
+      }));
+
+      const mappedProducts = products.map((product) => {
+        const { _id, name, images, attributes, is_active, seller_id } = product;
+
+        return {
+          _id,
+          name,
+          image: images && images.length > 0 ? images[0] : null,
+          price:
+            attributes && attributes.length > 0
+              ? Math.min(
+                  ...attributes.map((attr) => parseFloat(attr.attributes_price))
+                )
+              : null,
+          seller_id,
+        };
+      });
+
+      return {
+        total: result.hits.total.value,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        products: mappedProducts,
+      };
+    }),
 
   updateProduct: async (req, res) =>
     handleRequest(req, res, async (req) => {
       await checkUserOwnership(req.params.product_id, req.user._id.toString());
       const { _id, units_sold, discounts, reviews, seller_id, ...updateData } =
         req.body;
-      await ProductModel.updateProduct(req.params.product_id, updateData);
-      return { message: "Update product data successfully" };
+      const updatedProduct = await ProductModel.updateProduct(
+        req.params.product_id,
+        updateData
+      );
+      return {
+        message: "Update product data successfully",
+        product: updatedProduct,
+      };
     }),
 
   deleteProduct: async (req, res) => {
@@ -478,6 +521,12 @@ const ProductController = {
         message: "Product stock updated successfully",
         product: updatedProduct,
       };
+    }),
+
+  refreshProduct: async (req, res) =>
+    handleRequest(req, res, async (req) => {
+      const result = await ProductModel.refreshProduct();
+      return result;
     }),
 };
 

@@ -1,7 +1,7 @@
 const { Client } = require("@elastic/elasticsearch");
 
 const client = new Client({
-  node: "https://ce488a24f15a4688aab6936760ba617f.asia-southeast1.gcp.elastic-cloud.com:443",
+  node: process.env.ELASTICSEARCH_NODE,
   auth: {
     apiKey: process.env.ELASTICSEARCH_API_KEY,
   },

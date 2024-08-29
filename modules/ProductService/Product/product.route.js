@@ -51,11 +51,18 @@ const routes = [
     path: "/by-categories",
     handler: ProductController.getProductsByCategories,
   },
-  // {
-  //   method: "post",
-  //   path: "/filter",
-  //   handler: ProductController.filterProducts,
-  // },
+  // Search products by name and tag
+  {
+    method: "post",
+    path: "/elastic/search",
+    handler: ProductController.searchProduct,
+  },
+  // Search for products via name, country, brand, tag. In addition, there is also the ability to filter products by price (arrange highest or lowest selling price), units_sold (sort sold products) and sort rate (level of product rating).
+  {
+    method: "post",
+    path: "/elastic/filter",
+    handler: ProductController.filterProducts,
+  },
   {
     method: "put",
     path: "/update/:product_id",
@@ -73,6 +80,12 @@ const routes = [
     path: "/update-stock/:product_id",
     middleware: [authSellerToken],
     handler: ProductController.updateProductStock,
+  },
+  // admin only: when using this function, the server deletes all data of the elasticsearch "products" index. Then it retrieves all data of the "products" collection from mongoDB and reassigns it to the elasticsearch "products" index.
+  {
+    method: "get",
+    path: "/refresh/products",
+    handler: ProductController.refreshProduct,
   },
 ];
 

@@ -2,9 +2,10 @@ const Joi = require("joi");
 const { getDB } = require("../../../config/mongoDB");
 const { ObjectId } = require("mongodb");
 const DiscountModel = require("../../../modules/ProductService/Discount/DiscountModel");
+const cron = require("node-cron");
 const { client } = require("../../../config/elasticsearchClient");
 const { redisClient } = require("../../../config/redisClient");
-const cron = require("node-cron");
+const REDIS_EXPIRE_TIME = 3600;
 
 const COLLECTION_NAME = "products";
 const COLLECTION_SCHEMA = Joi.object({
@@ -16,27 +17,23 @@ const COLLECTION_SCHEMA = Joi.object({
   countryOfOrigin: Joi.string().required(),
   brand: Joi.string(),
   stock: Joi.number().min(0),
-  categories: Joi.array()
-    .items(
-      Joi.object({
-        category_id: Joi.string().required(),
-        category_name: Joi.string().required(),
-      })
-    )
-    .required(),
-  upcoming_discounts: Joi.array().items(Joi.string()),
-  ongoing_discounts: Joi.array().items(Joi.string()),
-  expired_discounts: Joi.array().items(Joi.string()),
+  categories: Joi.array().items(
+    Joi.object({
+      category_id: Joi.string().required(),
+      category_name: Joi.string().required(),
+    })
+  ),
+  upcoming_discounts: Joi.array().items(Joi.string()).required(),
+  ongoing_discounts: Joi.array().items(Joi.string()).required(),
+  expired_discounts: Joi.array().items(Joi.string()).required(),
   attributes_name: Joi.string(),
-  attributes: Joi.array()
-    .items(
-      Joi.object({
-        attributes_value: Joi.string().required(),
-        attributes_quantity: Joi.number().required(),
-        attributes_price: Joi.number().required(),
-      })
-    )
-    .min(2),
+  attributes: Joi.array().items(
+    Joi.object({
+      attributes_value: Joi.string().required(),
+      attributes_quantity: Joi.number().required(),
+      attributes_price: Joi.number().required(),
+    })
+  ),
   details: Joi.array()
     .items(
       Joi.object({
@@ -45,9 +42,12 @@ const COLLECTION_SCHEMA = Joi.object({
       })
     )
     .min(0),
-  tags: Joi.array().items(Joi.string()),
+  tags: Joi.array().items(Joi.string()).required(),
+  rating: Joi.number().default(0),
   units_sold: Joi.number().default(0),
   is_active: Joi.string().valid("Y", "N").default("Y"),
+  createdAt: Joi.date().default(Date.now),
+  updatedAt: Joi.date().default(Date.now),
 }).options({ abortEarly: false });
 
 const handleDBOperation = async (operation) => {
@@ -72,26 +72,55 @@ const ProductModel = {
         );
       }
 
-      const now = new Date();
       const validatedProduct = {
         ...value,
-        seller_id, // Add seller_id to the validated product
-        createdAt: now,
-        updatedAt: now,
+        seller_id,
       };
 
-      await collection.insertOne(validatedProduct);
-      return { message: "Create Product Successfully" };
+      const result = await collection.insertOne(validatedProduct);
+      const productElastic = {
+        product_id: result.insertedId.toString(),
+        ...value,
+        seller_id,
+      };
+
+      console.log(productElastic);
+
+      // Add to Elasticsearch
+      await client.index({
+        index: "products",
+        body: productElastic,
+      });
+
+      return {
+        message: "Create Product Successfully",
+        productId: result.insertedId,
+      };
     }),
 
-  getProductByProdId: async (product_id) =>
-    handleDBOperation(async (collection) => {
+  getProductByProdId: async (product_id) => {
+    const cacheKey = `product:${product_id}`;
+    const cachedProduct = await redisClient.get(cacheKey);
+
+    if (cachedProduct) {
+      return JSON.parse(cachedProduct);
+    }
+
+    return handleDBOperation(async (collection) => {
       if (!ObjectId.isValid(product_id)) throw new Error("Invalid product ID");
       const product = await collection.findOne({
         _id: new ObjectId(product_id),
       });
+
+      if (product) {
+        await redisClient.set(cacheKey, JSON.stringify(product), {
+          EX: parseInt(REDIS_EXPIRE_TIME),
+        });
+      }
+
       return product;
-    }),
+    });
+  },
 
   getListProductBySellerId: async (seller_id) =>
     handleDBOperation(async (collection) => {
@@ -170,10 +199,9 @@ const ProductModel = {
         throw new Error("Invalid product ID");
       }
 
-      // Validate updateData against schema
       const { error, value } = COLLECTION_SCHEMA.validate(updateData, {
         abortEarly: false,
-        stripUnknown: true, // Remove unknown fields
+        stripUnknown: true,
       });
 
       if (error) {
@@ -192,7 +220,7 @@ const ProductModel = {
         },
         {
           returnDocument: "after",
-          upsert: false, // Ensure we're not creating a new document
+          upsert: false,
         }
       );
 
@@ -200,11 +228,27 @@ const ProductModel = {
         throw new Error("Product not found or update failed");
       }
 
-      // Clear cache if you're using Redis
-      await redisClient.del(`product:${product_id}`);
+      // Update in Elasticsearch
+      await client.update({
+        index: "products",
+        id: product_id,
+        body: {
+          doc: {
+            ...value,
+            updatedAt: new Date(),
+          },
+        },
+      });
 
-      // Sync updated product to Elasticsearch
-      await ProductModel.syncProductToES(product_id);
+      if (result) {
+        const cacheKey = `product:${product_id}`;
+        await redisClient.del(cacheKey);
+        // Invalidate the getAllProduct cache
+        const allProductsKeys = await redisClient.keys("allProducts:*");
+        if (allProductsKeys.length > 0) {
+          await redisClient.del(allProductsKeys);
+        }
+      }
 
       return result;
     }),
@@ -218,7 +262,23 @@ const ProductModel = {
         _id: new ObjectId(product_id),
       });
       if (result.deletedCount === 0) throw new Error("Product not found");
-      await redisClient.del(`product:${product_id}`);
+
+      // Delete from Elasticsearch
+      await client.delete({
+        index: "products",
+        id: product_id,
+      });
+
+      if (result.deletedCount > 0) {
+        const cacheKey = `product:${product_id}`;
+        await redisClient.del(cacheKey);
+        // Invalidate the getAllProduct cache
+        const allProductsKeys = await redisClient.keys("allProducts:*");
+        if (allProductsKeys.length > 0) {
+          await redisClient.del(allProductsKeys);
+        }
+      }
+
       return result;
     }),
 
@@ -300,11 +360,8 @@ const ProductModel = {
 
         if (updated) {
           await collection.updateOne({ _id: product._id }, updateOps);
-          await redisClient.del(`product:${product._id}`);
         }
       }
-
-      await redisClient.del("allProducts");
     });
   },
 
@@ -386,7 +443,7 @@ const ProductModel = {
           throw new Error("Insufficient stock for the selected attribute");
         }
 
-        const result = await collection.findOneAndUpdate(
+        await collection.findOneAndUpdate(
           {
             _id: new ObjectId(productId),
             "attributes.attributes_value": selected_attributes_value,
@@ -413,7 +470,7 @@ const ProductModel = {
           throw new Error("Insufficient stock");
         }
 
-        const result = await collection.findOneAndUpdate(
+        await collection.findOneAndUpdate(
           { _id: new ObjectId(productId) },
           {
             ...baseUpdate,
@@ -424,30 +481,76 @@ const ProductModel = {
       }
     }),
 
-  syncProductToES: async (productId) =>
+  refreshProduct: async () =>
     handleDBOperation(async (collection) => {
-      const product = await ProductModel.getProductByProdId(productId);
-      if (!product) {
-        throw new Error("Product not found");
+      // Delete all documents from the Elasticsearch index
+      await client.deleteByQuery({
+        index: "products",
+        body: {
+          query: {
+            match_all: {},
+          },
+        },
+      });
+
+      // Fetch all products from MongoDB
+      const products = await collection.find({}).toArray();
+      const productsWithId = products.map((product) => ({
+        ...product,
+        product_id: product._id.toString(),
+      }));
+
+      // Bulk index all products in Elasticsearch
+      const body = productsWithId.flatMap((doc) => [
+        { index: { _index: "products", _id: doc._id.toString() } },
+        {
+          ...doc,
+          _id: undefined,
+        },
+      ]);
+
+      const bulkResponse = await client.bulk({ refresh: true, body });
+      // const { body: bulkResponse } = await client.bulk({ refresh: true, body });
+
+      if (bulkResponse.errors) {
+        const erroredDocuments = [];
+        bulkResponse.items.forEach((action, i) => {
+          const operation = Object.keys(action)[0];
+          if (action[operation].error) {
+            erroredDocuments.push({
+              status: action[operation].status,
+              error: action[operation].error,
+              operation: body[i * 2],
+              document: body[i * 2 + 1],
+            });
+          }
+        });
+        console.error("Failed to index some documents", erroredDocuments);
       }
 
-      const esProduct = {
-        id: product._id.toString(),
-        name: product.name,
-        description: product.description,
-        price: product.price,
-        categories: product.categories,
-        brand: product.brand,
-        countryOfOrigin: product.countryOfOrigin,
-        attributes: product.attributes,
-        commonAttributes: product.commonAttributes,
-      };
+      // Refresh Redis cache
+      const redisKeys = await redisClient.keys("product:*");
+      if (redisKeys.length > 0) {
+        await redisClient.del(redisKeys);
+      }
 
-      await client.index({
-        index: "products",
-        id: esProduct.id,
-        body: esProduct,
-      });
+      // Refresh all products cache in Redis
+      for (const product of products) {
+        const cacheKey = `product:${product._id}`;
+        await redisClient.set(cacheKey, JSON.stringify(product), {
+          EX: parseInt(REDIS_EXPIRE_TIME),
+        });
+      }
+
+      // Invalidate and refresh the getAllProduct cache
+      const allProductsKeys = await redisClient.keys("allProducts:*");
+      if (allProductsKeys.length > 0) {
+        await redisClient.del(allProductsKeys);
+      }
+
+      return {
+        message: "Products data refreshed in Elasticsearch and Redis cache",
+      };
     }),
 };
 
