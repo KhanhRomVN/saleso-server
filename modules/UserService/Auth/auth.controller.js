@@ -146,12 +146,12 @@ const AuthController = {
       }
 
       const accessToken = jwt.sign(
-        { user_id: existingUser._id },
+        { user_id: existingUser._id, role },
         process.env.JWT_SECRET_KEY,
         { expiresIn: "1d" }
       );
       const refreshToken = jwt.sign(
-        { user_id: existingUser._id },
+        { user_id: existingUser._id, role },
         process.env.JWT_SECRET_KEY,
         { expiresIn: "7d" }
       );
@@ -183,6 +183,13 @@ const AuthController = {
         throw new CustomError(401, "This password is not valid");
       }
       return { message: "Verify account successfully" };
+    });
+  },
+
+  refreshAccessToken: async (req, res) => {
+    handleRequest(req, res, async (req) => {
+      const { accessToken, refreshToken } = req.token;
+      return { newAccessToken: accessToken, newRefreshToken: refreshToken };
     });
   },
 };

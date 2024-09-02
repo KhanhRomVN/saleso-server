@@ -1,20 +1,23 @@
 const express = require("express");
 const { AuthController } = require("../../../controllers");
-const { authToken } = require("../../../middleware/authToken");
+const {
+  authToken,
+  refreshAccessToken,
+} = require("../../../middleware/authToken");
 const router = express.Router();
 
 const routes = [
   // Update new email: Verify new email and send email verification OTP code to update new email
   // Register: Verify new email before create new account
   {
-    method: "post", 
+    method: "post",
     path: "/email-verify",
     handler: AuthController.verifyNewEmail,
   },
   {
     method: "post",
     path: "/register-otp",
-    handler: AuthController.registerUserWithOTP,  
+    handler: AuthController.registerUserWithOTP,
   },
   {
     method: "post",
@@ -27,6 +30,13 @@ const routes = [
     path: "/verify/account",
     middleware: [authToken],
     handler: AuthController.verifyAccount,
+  },
+  // use this function to verify refreshToken (when accessToken error) to get new accessToken
+  {
+    method: "get",
+    path: "/refresh/token",
+    middleware: [refreshAccessToken],
+    handler: AuthController.refreshAccessToken,
   },
 ];
 

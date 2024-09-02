@@ -64,6 +64,11 @@ const routes = [
     handler: ProductController.filterProducts,
   },
   {
+    method: "post",
+    path: "/elastic/category/filter",
+    handler: ProductController.categoryFilterProducts,
+  },
+  {
     method: "put",
     path: "/update/:product_id",
     middleware: [authSellerToken],
