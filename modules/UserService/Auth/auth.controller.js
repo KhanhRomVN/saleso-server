@@ -5,6 +5,7 @@ const bcryptjs = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const logger = require("../../../config/logger");
+const { log } = require("console");
 
 const generateOTP = () => crypto.randomBytes(3).toString("hex");
 const getEmailTemplate = (otp, role) => `
@@ -133,6 +134,7 @@ const AuthController = {
   loginUser: async (req, res) => {
     handleRequest(req, res, async (req) => {
       const { email, password, role } = req.body;
+      console.log(req.body);
       const existingUser = await UserModel.getUserByEmail(email, role);
       if (!existingUser) {
         throw new CustomError(401, "This email has not been registered.");
