@@ -128,32 +128,6 @@ const ProductController = {
       return ProductModel.getListProductBySellerId(seller_id);
     }),
 
-  getAllProduct: (req, res) =>
-    handleRequest(req, res, async (req) => {
-      const page = parseInt(req.query.page) || 1;
-      const limit = parseInt(req.query.limit) || 10;
-
-      const result = await ProductModel.getAllProduct(page, limit);
-
-      const processedProducts = await Promise.all(
-        result.products.map(async (product) => {
-          const { averageRating, totalReviews } =
-            await FeedbackModel.getAverageRatingForProduct(product._id);
-
-          return {
-            ...product,
-            averageRating: averageRating || 0,
-            totalReviews: totalReviews || 0,
-          };
-        })
-      );
-
-      return {
-        ...result,
-        products: processedProducts,
-      };
-    }),
-
   getProductsWithDiscountBySellerId: (req, res) =>
     handleRequest(req, res, async (req) => {
       const products = await ProductModel.getListProductBySellerId(
@@ -193,9 +167,37 @@ const ProductController = {
     }),
 
   getProductsByCategory: (req, res) =>
-    handleRequest(req, res, async (req) =>
-      ProductModel.getListProductByCategory(req.params.category)
-    ),
+    handleRequest(req, res, async (req) => {
+      const { category } = req.params;
+      const {
+        page = 1,
+        limit = 20,
+        sort = "createdAt",
+        order = "desc",
+      } = req.query;
+      const products = await ProductModel.getProductsByCategory(
+        category,
+        page,
+        limit,
+        sort,
+        order
+      );
+      return products;
+    }),
+
+  getRandomProduct: (req, res) =>
+    handleRequest(req, res, async (req) => {
+      const limit = 60;
+      const randomProducts = await ProductModel.getRandomProducts(limit);
+      return randomProducts;
+    }),
+
+  getReleasedProduct: (req, res) =>
+    handleRequest(req, res, async (req) => {
+      const limit = 20;
+      const releasedProducts = await ProductModel.getReleasedProducts(limit);
+      return releasedProducts;
+    }),
 
   getFlashSaleProducts: (req, res) =>
     handleRequest(req, res, async (req) => {
@@ -216,6 +218,7 @@ const ProductController = {
             : null),
         seller_id: product.seller_id,
         discount_value: product.discount_value,
+        rating: product.rating,
       }));
 
       return refinedProducts;
@@ -223,77 +226,27 @@ const ProductController = {
 
   getTopSellingProducts: (req, res) =>
     handleRequest(req, res, async (req) => {
-      const limit = parseInt(req.query.limit) || 10;
-      const products = await ProductModel.getTopSellProduct(limit);
+      const limit = parseInt(req.query.limit) || 20;
+      const topSellingProducts = await ProductModel.getTopSellProduct(limit);
 
-      const processedProducts = await Promise.all(
-        products.map(async (product) => {
-          const { averageRating, totalReviews } =
-            await FeedbackModel.getAverageRatingForProduct(product._id);
+      const refinedProducts = topSellingProducts.map((product) => ({
+        _id: product._id,
+        name: product.name,
+        image: product.images[0],
+        price:
+          product.price ||
+          (product.attributes
+            ? Math.min(
+                ...product.attributes.map((attr) =>
+                  parseFloat(attr.attributes_price)
+                )
+              )
+            : null),
+        seller_id: product.seller_id,
+        rating: product.rating,
+      }));
 
-          return {
-            _id: product._id,
-            name: product.name,
-            images: product.images,
-            price:
-              product.price ||
-              (product.attributes
-                ? Math.min(
-                    ...Object.values(product.attributes).flatMap((attr) =>
-                      attr.map((item) => parseFloat(item.price))
-                    )
-                  )
-                : null),
-            averageRating,
-            totalReviews,
-          };
-        })
-      );
-
-      return processedProducts;
-    }),
-
-  getProductsByCategories: (req, res) =>
-    handleRequest(req, res, async (req) => {
-      const { categories } = req.body;
-      if (!Array.isArray(categories) || categories.length === 0) {
-        throw new Error("Invalid categories input");
-      }
-
-      const productsByCategory = await Promise.all(
-        categories.map(async (category) => {
-          const products =
-            await ProductModel.getListProductByCategory(category);
-
-          const processedProducts = await Promise.all(
-            products.map(async (product) => {
-              const { averageRating, totalReviews } =
-                await FeedbackModel.getAverageRatingForProduct(product._id);
-
-              return {
-                _id: product._id,
-                name: product.name,
-                price:
-                  product.price ||
-                  (product.attributes
-                    ? Math.min(
-                        ...Object.values(product.attributes).flatMap((attr) =>
-                          attr.map((item) => parseFloat(item.price))
-                        )
-                      )
-                    : null),
-                images: product.images,
-                averageRating,
-                totalReviews,
-              };
-            })
-          );
-
-          return processedProducts;
-        })
-      );
-
-      return productsByCategory;
+      return refinedProducts;
     }),
 
   searchProduct: (req, res) =>

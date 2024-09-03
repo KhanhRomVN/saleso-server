@@ -84,8 +84,6 @@ const ProductModel = {
         seller_id,
       };
 
-      console.log(productElastic);
-
       // Add to Elasticsearch
       await client.index({
         index: "products",
@@ -139,58 +137,6 @@ const ProductModel = {
       });
 
       return { category, count };
-    }),
-
-  getListProductByCategory: async (category) =>
-    handleDBOperation(async (collection) => {
-      if (!category || typeof category !== "string") {
-        throw new Error("Invalid category");
-      }
-
-      const products = await collection
-        .find({ categories: { $in: [category] }, is_active: "Y" })
-        .toArray();
-
-      return products;
-    }),
-
-  getProductsByCategories: async (categories) =>
-    handleDBOperation(async (collection) => {
-      if (!Array.isArray(categories) || categories.length === 0) {
-        throw new Error("Invalid categories input");
-      }
-      const products = await collection
-        .find({
-          categories: { $in: categories },
-          is_active: "Y",
-        })
-        .toArray();
-      return products;
-    }),
-
-  getAllProduct: async (page = 1, limit = 10) =>
-    handleDBOperation(async (collection) => {
-      const skip = (page - 1) * limit;
-
-      const products = await collection
-        .find({ is_active: "Y" })
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .toArray();
-
-      const total = await collection.countDocuments({ is_active: "Y" });
-
-      const result = {
-        products,
-        total,
-        page,
-        totalPages: Math.ceil(total / limit),
-        hasNextPage: page * limit < total,
-        hasPrevPage: page > 1,
-      };
-
-      return result;
     }),
 
   updateProduct: async (product_id, updateData) =>
@@ -367,7 +313,6 @@ const ProductModel = {
 
   getFlashSaleProduct: async () =>
     handleDBOperation(async (collection) => {
-      // const now = new Date();
       const products = await collection
         .find({
           ongoing_discounts: { $exists: true, $ne: [] },
@@ -412,6 +357,110 @@ const ProductModel = {
         .toArray();
 
       return topProducts;
+    }),
+
+  getProductsByCategory: async (
+    category,
+    page = 1,
+    limit = 20,
+    sort = "createdAt",
+    order = "desc"
+  ) =>
+    handleDBOperation(async (collection) => {
+      const skip = (page - 1) * limit;
+      const sortOption = {};
+      sortOption[sort] = order === "desc" ? -1 : 1;
+
+      const products = await collection
+        .aggregate([
+          {
+            $match: {
+              "categories.category_name": category,
+              is_active: "Y",
+            },
+          },
+          { $sort: sortOption },
+          { $skip: skip },
+          { $limit: parseInt(limit) },
+          {
+            $project: {
+              _id: 1,
+              name: 1,
+              images: { $slice: ["$images", 1] },
+              price: 1,
+              rating: 1,
+              seller_id: 1,
+            },
+          },
+        ])
+        .toArray();
+
+      const totalCount = await collection.countDocuments({
+        "categories.category_name": category,
+        is_active: "Y",
+      });
+
+      return {
+        products,
+        pagination: {
+          total: totalCount,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          pages: Math.ceil(totalCount / limit),
+        },
+      };
+    }),
+
+  getProductsByCategory: async (
+    category,
+    page = 1,
+    limit = 20,
+    sort = "createdAt",
+    order = "desc"
+  ) =>
+    handleDBOperation(async (collection) => {
+      // ... (implementation remains the same)
+    }),
+
+  getRandomProducts: async (limit = 60) =>
+    handleDBOperation(async (collection) => {
+      const randomProducts = await collection
+        .aggregate([
+          { $match: { is_active: "Y" } },
+          { $sample: { size: limit } },
+          {
+            $project: {
+              _id: 1,
+              name: 1,
+              images: { $slice: ["$images", 1] },
+              price: 1,
+              rating: 1,
+              seller_id: 1,
+            },
+          },
+        ])
+        .toArray();
+
+      return randomProducts;
+    }),
+
+  getReleasedProducts: async (limit = 20) =>
+    handleDBOperation(async (collection) => {
+      const releasedProducts = await collection
+        .find({ is_active: "Y" })
+        .sort({ createdAt: -1 })
+        .limit(limit)
+        .project({
+          _id: 1,
+          name: 1,
+          images: { $slice: ["$images", 1] },
+          price: 1,
+          rating: 1,
+          seller_id: 1,
+        })
+        .toArray();
+
+      return releasedProducts;
     }),
 
   updateStock: async (productId, quantity, selected_attributes_value = null) =>

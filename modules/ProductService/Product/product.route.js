@@ -28,11 +28,6 @@ const routes = [
   },
   {
     method: "post",
-    path: "/all",
-    handler: ProductController.getAllProduct,
-  },
-  {
-    method: "post",
     path: "/flash-sale",
     handler: ProductController.getFlashSaleProducts,
   },
@@ -48,8 +43,13 @@ const routes = [
   },
   {
     method: "post",
-    path: "/by-categories",
-    handler: ProductController.getProductsByCategories,
+    path: "/random",
+    handler: ProductController.getRandomProduct,
+  },
+  {
+    method: "post",
+    path: "/released",
+    handler: ProductController.getReleasedProduct,
   },
   // Search products by name and tag
   {
