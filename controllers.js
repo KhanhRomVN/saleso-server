@@ -22,6 +22,7 @@ const ProductAnalyticController = require("./modules/AnalyticsService/ProductAna
 // Other Service
 const ConservationController = require("./modules/OtherService/Chat/conservation.controller");
 const GalleryController = require("./modules/OtherService/Gallery/gallery.controller");
+const SessionController = require("./modules/OtherService/Session/session.controller");
 
 module.exports = {
   CartController,
@@ -41,4 +42,5 @@ module.exports = {
   UserController,
   GalleryController,
   ProductAnalyticController,
+  SessionController,
 };

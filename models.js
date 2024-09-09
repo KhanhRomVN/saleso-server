@@ -25,6 +25,7 @@ const MessageModel = require("./modules/OtherService/Chat/MessageModel");
 const ConversationModel = require("./modules/OtherService/Chat/ConversationModel");
 const GalleryModel = require("./modules/OtherService/Gallery/GalleryModel");
 const OTPModel = require("./modules/OtherService/OTP/OTPModel");
+const SessionModel = require("./modules/OtherService/Session/SessionModel");
 
 module.exports = {
   CartModel,
@@ -47,4 +48,5 @@ module.exports = {
   UserDetailModel,
   ProductAnalyticModel,
   SellerAnalyticModel,
+  SessionModel,
 };

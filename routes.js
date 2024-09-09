@@ -10,6 +10,7 @@ const feedback = require("./modules/ProductService/Feedback/feedback.route");
 const wishlist = require("./modules/OrderService/Wishlist/wishlist.route");
 const cart = require("./modules/OrderService/Cart/cart.route");
 const order = require("./modules/OrderService/Order/order.route");
+const session = require("./modules/OtherService/Session/session.route");
 // Payment Service
 const invoice = require("./modules/PaymentService/Invoice/invoice.route");
 const payment = require("./modules/PaymentService/Payment/payment.route");
@@ -37,6 +38,7 @@ module.exports = {
   invoice,
   notification,
   order,
+  session,
   reversal,
   refund,
   payment,
