@@ -80,8 +80,6 @@ const GalleryController = {
         limit = 10,
       } = req.body;
 
-      console.log(type);
-
       const filters = {
         type,
         ratio,

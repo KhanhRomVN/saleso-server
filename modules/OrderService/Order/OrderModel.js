@@ -11,7 +11,6 @@ const COLLECTION_SCHEMA = Joi.object({
   quantity: Joi.number().integer().min(1).required(),
   total_amount: Joi.number().required(),
   discount_id: Joi.string(),
-  // shipping_method: Joi.string().required(),
   shipping_fee: Joi.number().min(0).required(),
   shipping_address: Joi.string().required(),
   order_status: Joi.string().valid("pending", "accepted", "refused").required(),

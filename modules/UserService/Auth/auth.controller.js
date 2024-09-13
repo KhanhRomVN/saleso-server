@@ -1,4 +1,9 @@
-const { UserModel, OTPModel, SellerAnalyticModel } = require("../../../models");
+const {
+  UserModel,
+  OTPModel,
+  SellerAnalyticModel,
+  UserDetailModel,
+} = require("../../../models");
 const transporter = require("../../../config/nodemailerConfig");
 const { CustomError } = require("../../../middleware/errorHandler");
 const bcryptjs = require("bcryptjs");
@@ -126,7 +131,26 @@ const AuthController = {
       };
 
       const user = await UserModel.registerUser(userData, role);
-      await SellerAnalyticModel.createSellerAnalytic(user);
+      if (role === "customer") {
+        const customer = await UserModel.getUserByEmail(email, role);
+        const detailData = {
+          customer_id: customer._id.toString(),
+          avatar_uri: "",
+          name: "",
+          address: [],
+          age: null,
+        };
+        await UserDetailModel.newDetail(detailData, role);
+      } else {
+        const seller = await UserModel.getUserByEmail(email, role);
+        const detailData = {
+          seller_id: seller._id.toString(),
+          avatar_uri: "",
+          address: [],
+          categories: [],
+        };
+        await UserDetailModel.newDetail(detailData, role);
+      }
       return { message: "User registered successfully", user_id: user };
     });
   },
@@ -134,7 +158,6 @@ const AuthController = {
   loginUser: async (req, res) => {
     handleRequest(req, res, async (req) => {
       const { email, password, role } = req.body;
-      console.log(req.body);
       const existingUser = await UserModel.getUserByEmail(email, role);
       if (!existingUser) {
         throw new CustomError(401, "This email has not been registered.");
@@ -169,6 +192,7 @@ const AuthController = {
     });
   },
 
+  // use when change password, change email, do something need verify account...
   verifyAccount: async (req, res) => {
     handleRequest(req, res, async (req) => {
       const { email, password } = req.body;

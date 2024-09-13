@@ -8,24 +8,15 @@ const CUSTOMER_COLLECTION_SCHEMA = Joi.object({
   customer_id: Joi.string().required(),
   avatar_uri: Joi.string(),
   name: Joi.string().required(),
-  shipping_address: Joi.array().items(Joi.string()),
+  address: Joi.array().items(Joi.string()),
   age: Joi.number().required(),
 }).options({ abortEarly: false });
 
 const SELLER_COLLECTION_SCHEMA = Joi.object({
   seller_id: Joi.string().required(),
   avatar_uri: Joi.string(),
-  brand_name: Joi.string().required(),
-  contact_email: Joi.string().email().required(),
-  business_address: Joi.array().items(Joi.string()).required(),
-  product_categories: Joi.array()
-    .items(
-      Joi.object({
-        category_id: Joi.string().required(),
-        category_name: Joi.string().required(), // Changed from number to string
-      })
-    )
-    .required(),
+  address: Joi.array().items(Joi.string()).required(),
+  categories: Joi.array().items(Joi.string()).required(),
 }).options({ abortEarly: false });
 
 const getCollectionName = (role) => {
@@ -52,10 +43,11 @@ const handleDBOperation = async (operation, role) => {
 };
 
 const UserDetailModel = {
-  addDetail: async (data, role) =>
+  // just use for create new account
+  newDetail: async (detailData, role) =>
     handleDBOperation(async (collection) => {
       const schema = getSchema(role);
-      const { error, value } = schema.validate(data, {
+      const { error, value } = schema.validate(detailData, {
         abortEarly: false,
       });
       if (error) {

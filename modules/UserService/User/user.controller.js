@@ -75,14 +75,6 @@ const getEmailTemplate = (otp, role) => `
 `;
 
 const UserController = {
-  createCDetail: async (req, res) => {
-    handleRequest(req, res, async (req) => {
-      const { role } = req.params;
-      await UserDetailModel.addDetail(req.body, role);
-      return { success: "Create successful information" };
-    });
-  },
-
   getUser: async (req, res) => {
     handleRequest(req, res, async (req) => {
       const user_id = req.user._id.toString();

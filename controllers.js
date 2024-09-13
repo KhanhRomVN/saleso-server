@@ -6,22 +6,17 @@ const ProductController = require("./modules/ProductService/Product/product.cont
 const CategoryController = require("./modules/ProductService/Category/category.controller");
 const DiscountController = require("./modules/ProductService/Discount/discount.controller");
 const FeedbackController = require("./modules/ProductService/Feedback/feedback.controller");
+const VariantController = require("./modules/ProductService/Variant/variant.controller");
 // Order Service
-const OrderController = require("./modules/OrderService/Order/order.controller");
 const CartController = require("./modules/OrderService/Cart/cart.controller");
+const OrderController = require("./modules/OrderService/Order/order.controller");
+const PaymentController = require("./modules/OrderService/Payment/payment.controller");
 const WishlistController = require("./modules/OrderService/Wishlist/wishlist.controller");
-// Payment Service
-const InvoiceController = require("./modules/PaymentService/Invoice/invoice.controller");
-const PaymentController = require("./modules/PaymentService/Payment/payment.controller");
-const ReversalController = require("./modules/PaymentService/Reversal/reversal.controller");
-const RefundController = require("./modules/PaymentService/Refund/refund.controller");
-// Notification Service
-const NotificationController = require("./modules/NotificationService/Notification/notification.controller");
-// Analytic Service
-const ProductAnalyticController = require("./modules/AnalyticsService/ProductAnalytic/product_analytic.controller");
+const ReversalController = require("./modules/OrderService/Reversal/reversal.controller");
 // Other Service
 const ConservationController = require("./modules/OtherService/Chat/conservation.controller");
 const GalleryController = require("./modules/OtherService/Gallery/gallery.controller");
+const NotificationController = require("./modules/OtherService/Notification/notification.controller");
 const SessionController = require("./modules/OtherService/Session/session.controller");
 
 module.exports = {
@@ -30,10 +25,8 @@ module.exports = {
   OrderController,
   WishlistController,
   ReversalController,
-  RefundController,
   CategoryController,
   DiscountController,
-  InvoiceController,
   PaymentController,
   ProductController,
   AuthController,
@@ -41,6 +34,6 @@ module.exports = {
   NotificationController,
   UserController,
   GalleryController,
-  ProductAnalyticController,
   SessionController,
+  VariantController,
 };

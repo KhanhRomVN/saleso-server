@@ -11,27 +11,15 @@ const COLLECTION_NAME = "products";
 const COLLECTION_SCHEMA = Joi.object({
   seller_id: Joi.string(),
   name: Joi.string().required(),
+  slug: Joi.string().required(),
   images: Joi.array().items(Joi.string()).required(),
   description: Joi.string(),
-  price: Joi.number().min(0),
-  countryOfOrigin: Joi.string().required(),
-  brand: Joi.string(),
-  stock: Joi.number().min(0),
+  address: Joi.string().required(),
+  origin: Joi.string().required(),
   categories: Joi.array().items(
     Joi.object({
       category_id: Joi.string().required(),
       category_name: Joi.string().required(),
-    })
-  ),
-  upcoming_discounts: Joi.array().items(Joi.string()).required(),
-  ongoing_discounts: Joi.array().items(Joi.string()).required(),
-  expired_discounts: Joi.array().items(Joi.string()).required(),
-  attributes_name: Joi.string(),
-  attributes: Joi.array().items(
-    Joi.object({
-      attributes_value: Joi.string().required(),
-      attributes_quantity: Joi.number().required(),
-      attributes_price: Joi.number().required(),
     })
   ),
   details: Joi.array()
@@ -43,11 +31,19 @@ const COLLECTION_SCHEMA = Joi.object({
     )
     .min(0),
   tags: Joi.array().items(Joi.string()).required(),
-  rating: Joi.number().default(0),
-  units_sold: Joi.number().default(0),
+  variants: Joi.array().items(
+    Joi.object({
+      sku: Joi.string().required(),
+      stock: Joi.number().required(),
+      price: Joi.number().required(),
+    })
+  ),
+  upcoming_discounts: Joi.array().items(Joi.string()).required(),
+  ongoing_discounts: Joi.array().items(Joi.string()).required(),
+  expired_discounts: Joi.array().items(Joi.string()).required(),
   is_active: Joi.string().valid("Y", "N").default("Y"),
-  createdAt: Joi.date().default(Date.now),
-  updatedAt: Joi.date().default(Date.now),
+  created_at: Joi.date().default(Date.now),
+  updated_at: Joi.date().default(Date.now),
 }).options({ abortEarly: false });
 
 const handleDBOperation = async (operation) => {
@@ -92,11 +88,11 @@ const ProductModel = {
 
       return {
         message: "Create Product Successfully",
-        productId: result.insertedId,
+        product_id: result.insertedId,
       };
     }),
 
-  getProductByProdId: async (product_id) => {
+  getProductById: async (product_id) => {
     const cacheKey = `product:${product_id}`;
     const cachedProduct = await redisClient.get(cacheKey);
 
@@ -359,108 +355,33 @@ const ProductModel = {
       return topProducts;
     }),
 
-  getProductsByCategory: async (
-    category,
-    page = 1,
-    limit = 20,
-    sort = "createdAt",
-    order = "desc"
-  ) =>
+  getProductsByListProductId: async (productIds) =>
     handleDBOperation(async (collection) => {
-      const skip = (page - 1) * limit;
-      const sortOption = {};
-      sortOption[sort] = order === "desc" ? -1 : 1;
+      if (!Array.isArray(productIds) || productIds.length === 0) {
+        throw new Error("Invalid input: productIds must be a non-empty array");
+      }
 
-      const products = await collection
-        .aggregate([
-          {
-            $match: {
-              "categories.category_name": category,
-              is_active: "Y",
-            },
-          },
-          { $sort: sortOption },
-          { $skip: skip },
-          { $limit: parseInt(limit) },
-          {
-            $project: {
-              _id: 1,
-              name: 1,
-              images: { $slice: ["$images", 1] },
-              price: 1,
-              rating: 1,
-              seller_id: 1,
-            },
-          },
-        ])
-        .toArray();
-
-      const totalCount = await collection.countDocuments({
-        "categories.category_name": category,
-        is_active: "Y",
+      // Convert string IDs to ObjectId
+      const objectIds = productIds.map((id) => {
+        if (!ObjectId.isValid(id)) {
+          throw new Error(`Invalid product ID: ${id}`);
+        }
+        return new ObjectId(id);
       });
 
-      return {
-        products,
-        pagination: {
-          total: totalCount,
-          page: parseInt(page),
-          limit: parseInt(limit),
-          pages: Math.ceil(totalCount / limit),
-        },
-      };
-    }),
-
-  getProductsByCategory: async (
-    category,
-    page = 1,
-    limit = 20,
-    sort = "createdAt",
-    order = "desc"
-  ) =>
-    handleDBOperation(async (collection) => {
-      // ... (implementation remains the same)
-    }),
-
-  getRandomProducts: async (limit = 60) =>
-    handleDBOperation(async (collection) => {
-      const randomProducts = await collection
-        .aggregate([
-          { $match: { is_active: "Y" } },
-          { $sample: { size: limit } },
-          {
-            $project: {
-              _id: 1,
-              name: 1,
-              images: { $slice: ["$images", 1] },
-              price: 1,
-              rating: 1,
-              seller_id: 1,
-            },
-          },
-        ])
+      // Fetch products from MongoDB
+      const products = await collection
+        .find({ _id: { $in: objectIds } })
         .toArray();
 
-      return randomProducts;
-    }),
+      // Check if all products were found
+      if (products.length !== productIds.length) {
+        const foundIds = products.map((p) => p._id.toString());
+        const missingIds = productIds.filter((id) => !foundIds.includes(id));
+        console.warn(`Some products were not found: ${missingIds.join(", ")}`);
+      }
 
-  getReleasedProducts: async (limit = 20) =>
-    handleDBOperation(async (collection) => {
-      const releasedProducts = await collection
-        .find({ is_active: "Y" })
-        .sort({ createdAt: -1 })
-        .limit(limit)
-        .project({
-          _id: 1,
-          name: 1,
-          images: { $slice: ["$images", 1] },
-          price: 1,
-          rating: 1,
-          seller_id: 1,
-        })
-        .toArray();
-
-      return releasedProducts;
+      return products;
     }),
 
   updateStock: async (productId, quantity, selected_attributes_value = null) =>

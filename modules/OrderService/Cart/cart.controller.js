@@ -18,10 +18,10 @@ const handleRequest = async (req, res, operation) => {
 };
 
 const CartController = {
-  getCart: (req, res) =>
+  getCustomerCart: (req, res) =>
     handleRequest(req, res, async (req) => {
       const customer_id = req.user._id.toString();
-      const cart = await CartModel.getCart(customer_id);
+      const cart = await CartModel.getCustomerCart(customer_id);
 
       // Remove createdAt and updatedAt
       const { createdAt, updatedAt, ...cartData } = cart;
@@ -66,6 +66,12 @@ const CartController = {
         ...cartData,
         items: processedItems,
       };
+    }),
+
+  getCart: (req, res) =>
+    handleRequest(req, res, async (req) => {
+      const { cart_id } = req.params;
+      return await CartModel.getCartById(cart_id);
     }),
 
   addItem: (req, res) =>

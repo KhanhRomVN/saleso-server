@@ -28,12 +28,41 @@ const handleDBOperation = async (operation) => {
 };
 
 const CartModel = {
-  getCart: async (customer_id) => {
+  getCustomerCart: async (customer_id) => {
     return handleDBOperation(async (collection) => {
       const cart = await collection.findOne({
         customer_id: customer_id,
       });
       return cart || { customer_id, items: [] };
+    });
+  },
+
+  getCartById: async (product_id) => {
+    return handleDBOperation(async (collection) => {
+      const cart = await collection.findOne({
+        "items.product_id": product_id,
+      });
+
+      if (!cart) {
+        throw new Error("Product not found in any cart");
+      }
+
+      const item = cart.items.find((item) => item.product_id === product_id);
+
+      if (!item) {
+        throw new Error("Product not found in the cart");
+      }
+
+      const result = {
+        product_id: item.product_id,
+        quantity: item.quantity,
+      };
+
+      if (item.selected_attributes_value !== undefined) {
+        result.selected_attributes_value = item.selected_attributes_value;
+      }
+
+      return result;
     });
   },
 

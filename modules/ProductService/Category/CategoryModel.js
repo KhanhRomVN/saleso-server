@@ -10,7 +10,6 @@ const CATEGORY_SCHEMA = Joi.object({
   description: Joi.string().allow(""),
   parent_id: Joi.string(),
   level: Joi.number().required(),
-  product_count: Joi.number().default(0),
   created_at: Joi.date().default(Date.now),
   updated_at: Joi.date().default(Date.now),
 }).options({ abortEarly: false });

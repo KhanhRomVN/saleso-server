@@ -8,6 +8,11 @@ const routes = [
     method: "get",
     path: "/",
     middleware: [authCustomerToken],
+    handler: CartController.getCustomerCart,
+  },
+  {
+    method: "get",
+    path: "/:cart_id",
     handler: CartController.getCart,
   },
   {

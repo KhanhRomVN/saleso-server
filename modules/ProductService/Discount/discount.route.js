@@ -6,18 +6,18 @@ const router = express.Router();
 const routes = [
   {
     method: "post",
-    path: "/create",
+    path: "/",
     middleware: [authSellerToken],
     handler: DiscountController.createDiscount,
   },
   {
     method: "get",
-    path: "/by-product/:product_id",
+    path: "/products/:product_id",
     handler: DiscountController.getDiscountByProductId,
   },
   {
     method: "get",
-    path: "/all",
+    path: "/",
     middleware: [authSellerToken],
     handler: DiscountController.getAllDiscounts,
   },
@@ -51,50 +51,34 @@ const routes = [
     middleware: [authSellerToken],
     handler: DiscountController.getExpiredDiscounts,
   },
-  // {
-  //   method: "get",
-  //   path: "/top-used",
-  //   handler: DiscountController.getTopUsedDiscounts,
-  // },
   {
     method: "get",
-    path: "/:id",
+    path: "/get/:id",
     handler: DiscountController.getDiscountById,
   },
   {
     method: "patch",
-    path: "/:id/name",
-    handler: DiscountController.updateDiscountName,
+    path: "/:id/status",
+    middleware: [authSellerToken],
+    handler: DiscountController.toggleDiscountStatus,
   },
   {
-    method: "patch",
-    path: "/:id/toggle-active",
+    method: "put",
+    path: "/products/:product_id/discounts/:discount_id",
     middleware: [authSellerToken],
-    handler: DiscountController.toggleActiveDiscount,
+    handler: DiscountController.applyDiscountToProduct,
   },
   {
-    method: "post",
-    path: "/apply",
+    method: "delete",
+    path: "/products/:product_id/discounts/:discount_id",
     middleware: [authSellerToken],
-    handler: DiscountController.applyDiscountProduct,
-  },
-  {
-    method: "post",
-    path: "/cancel",
-    middleware: [authSellerToken],
-    handler: DiscountController.cancelDiscountProduct,
+    handler: DiscountController.removeDiscountFromProduct,
   },
   {
     method: "delete",
     path: "/:id",
     middleware: [authSellerToken],
     handler: DiscountController.deleteDiscount,
-  },
-  {
-    method: "post",
-    path: "/:id/clone",
-    middleware: [authSellerToken],
-    handler: DiscountController.cloneDiscount,
   },
 ];
 

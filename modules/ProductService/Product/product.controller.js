@@ -2,9 +2,9 @@ const {
   ProductModel,
   DiscountModel,
   FeedbackModel,
+  ProductAnalyticModel,
 } = require("../../../models");
 const logger = require("../../../config/logger");
-const ProductAnalyticController = require("../../AnalyticsService/ProductAnalytic/product_analytic.controller");
 const { client } = require("../../../config/elasticsearchClient");
 
 const createDescriptionDiscount = (discount) => {
@@ -58,145 +58,41 @@ const ProductController = {
         req.body,
         req.user._id.toString()
       );
-      await ProductAnalyticController.createNewProductAnalytic(
-        result.productId.toString()
-      );
+
+      const currentDate = new Date();
+      const currentYear = currentDate.getFullYear();
+      const currentMonth = currentDate.getMonth() + 1;
+
+      const productAnalyticData = {
+        product_id: result.product_id.toString(),
+        year: currentYear,
+        month: currentMonth,
+        revenue: 0,
+        visitor: 0,
+        wishlist_additions: 0,
+        cart_additions: 0,
+        orders_placed: 0,
+        orders_cancelled: 0,
+        orders_successful: 0,
+        reversal: 0,
+        discount_applications: 0,
+      };
+
+      await ProductAnalyticModel.newProductAnalytic(productAnalyticData);
       return {
-        message: "Create Product Successfully",
-        productId: result.productId,
+        message: "Create product successfully",
+        product_id: result.product_id,
       };
     }),
 
   getProductById: (req, res) =>
     handleRequest(req, res, async (req) => {
-      const product = await ProductModel.getProductByProdId(
-        req.params.product_id
-      );
-
-      if (!product) {
-        return res.status(404).json({ message: "Product not found" });
-      }
-
-      let max_discount = 0;
-      const discounts = await Promise.all(
-        product.ongoing_discounts.map(async (discountId) => {
-          const discount = await DiscountModel.getDiscountById(discountId);
-          switch (discount.type) {
-            case "percentage":
-              max_discount = Math.max(max_discount, discount.value);
-              return `Discount ${discount.value}%`;
-            case "fixed":
-              return `Discount -${discount.value}$`;
-            case "buy_x_get_y":
-              return `Buy ${discount.value.buyQuantity} Get ${discount.value.getFreeQuantity}`;
-            case "flash-sale":
-              max_discount = Math.max(max_discount, discount.value);
-              return `Flashsale ${discount.value}%`;
-            default:
-              return "";
-          }
-        })
-      );
-
-      const reviews = await FeedbackModel.getAverageRatingForProduct(
-        req.params.product_id
-      );
-
-      const {
-        is_active,
-        createdAt,
-        updatedAt,
-        expired_discounts,
-        ongoing_discounts,
-        upcoming_discounts,
-        ...refinedProduct
-      } = product;
-
-      const response = {
-        ...refinedProduct,
-        max_discount,
-        discounts,
-        reviews,
-      };
-
-      return response;
+      return await ProductModel.getProductById(req.params.product_id);
     }),
 
   getProductsBySellerId: (req, res) =>
     handleRequest(req, res, async (req) => {
-      const seller_id = req.user._id.toString();
-      return ProductModel.getListProductBySellerId(seller_id);
-    }),
-
-  getProductsWithDiscountBySellerId: (req, res) =>
-    handleRequest(req, res, async (req) => {
-      const products = await ProductModel.getListProductBySellerId(
-        req.params.seller_id
-      );
-
-      const productsWithDiscounts = await Promise.all(
-        products.map(async (product) => {
-          const discountArrays = [
-            "upcoming_discounts",
-            "ongoing_discounts",
-            "expired_discounts",
-          ];
-          const discountsWithDescription = {};
-
-          for (const arrayName of discountArrays) {
-            discountsWithDescription[arrayName] = await Promise.all(
-              product[arrayName].map(async (discountId) => {
-                const discount =
-                  await DiscountModel.getDiscountById(discountId);
-                if (discount) {
-                  discount.description = createDescriptionDiscount(discount);
-                }
-                return discount;
-              })
-            );
-          }
-
-          return {
-            ...product,
-            ...discountsWithDescription,
-          };
-        })
-      );
-
-      return productsWithDiscounts;
-    }),
-
-  getProductsByCategory: (req, res) =>
-    handleRequest(req, res, async (req) => {
-      const { category } = req.params;
-      const {
-        page = 1,
-        limit = 20,
-        sort = "createdAt",
-        order = "desc",
-      } = req.query;
-      const products = await ProductModel.getProductsByCategory(
-        category,
-        page,
-        limit,
-        sort,
-        order
-      );
-      return products;
-    }),
-
-  getRandomProduct: (req, res) =>
-    handleRequest(req, res, async (req) => {
-      const limit = 60;
-      const randomProducts = await ProductModel.getRandomProducts(limit);
-      return randomProducts;
-    }),
-
-  getReleasedProduct: (req, res) =>
-    handleRequest(req, res, async (req) => {
-      const limit = 20;
-      const releasedProducts = await ProductModel.getReleasedProducts(limit);
-      return releasedProducts;
+      return ProductModel.getListProductBySellerId(req.user._id.toString());
     }),
 
   getFlashSaleProducts: (req, res) =>
@@ -247,6 +143,30 @@ const ProductController = {
       }));
 
       return refinedProducts;
+    }),
+
+  getProductsByListProductId: (req, res) =>
+    handleRequest(req, res, async (req) => {
+      const listProduct = await ProductModel.getProductsByListProductId(
+        req.body.productIds
+      );
+      // const refinedProducts = listProduct.map((product) => ({
+      //   _id: product._id,
+      //   seller_id: product.seller_id,
+      //   name: product.name,
+      //   image: product.images[0],
+      //   price:
+      //     product.price ||
+      //     (product.attributes
+      //       ? Math.min(
+      //           ...product.attributes.map((attr) =>
+      //             parseFloat(attr.attributes_price)
+      //           )
+      //         )
+      //       : null),
+      // }));
+
+      return listProduct;
     }),
 
   searchProduct: (req, res) =>
@@ -564,20 +484,6 @@ const ProductController = {
       res.status(500).json({ error: "Internal server error" });
     }
   },
-
-  updateProductStock: (req, res) =>
-    handleRequest(req, res, async (req) => {
-      await checkUserOwnership(req.params.product_id, req.user._id.toString());
-      const { quantity } = req.body;
-      const updatedProduct = await ProductModel.updateStock(
-        req.params.product_id,
-        quantity
-      );
-      return {
-        message: "Product stock updated successfully",
-        product: updatedProduct,
-      };
-    }),
 
   refreshProduct: async (req, res) =>
     handleRequest(req, res, async (req) => {

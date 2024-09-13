@@ -8,12 +8,6 @@ const { UserController } = require("../../../controllers");
 const router = express.Router();
 
 const routes = [
-  // Only used when creating a new account
-  {
-    method: "post",
-    path: "/create/user-detail/:role",
-    handler: UserController.createCDetail,
-  },
   {
     method: "get",
     path: "/",

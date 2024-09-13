@@ -6,13 +6,13 @@ const router = express.Router();
 const routes = [
   {
     method: "post",
-    path: "/create",
+    path: "/",
     middleware: [authSellerToken],
     handler: ProductController.createProduct,
   },
   {
     method: "get",
-    path: "/:product_id",
+    path: "/by-product/:product_id",
     handler: ProductController.getProductById,
   },
   {
@@ -20,11 +20,6 @@ const routes = [
     path: "/by-seller",
     middleware: [authSellerToken],
     handler: ProductController.getProductsBySellerId,
-  },
-  {
-    method: "get",
-    path: "/discount/by-seller/:seller_id",
-    handler: ProductController.getProductsWithDiscountBySellerId,
   },
   {
     method: "post",
@@ -37,19 +32,9 @@ const routes = [
     handler: ProductController.getTopSellingProducts,
   },
   {
-    method: "get",
-    path: "/by-category/:category",
-    handler: ProductController.getProductsByCategory,
-  },
-  {
     method: "post",
-    path: "/random",
-    handler: ProductController.getRandomProduct,
-  },
-  {
-    method: "post",
-    path: "/released",
-    handler: ProductController.getReleasedProduct,
+    path: "/get/recommend-product",
+    handler: ProductController.getProductsByListProductId,
   },
   // Search products by name and tag
   {
@@ -79,12 +64,6 @@ const routes = [
     path: "/delete/:product_id",
     middleware: [authSellerToken],
     handler: ProductController.deleteProduct,
-  },
-  {
-    method: "put",
-    path: "/update-stock/:product_id",
-    middleware: [authSellerToken],
-    handler: ProductController.updateProductStock,
   },
   // admin only: when using this function, the server deletes all data of the elasticsearch "products" index. Then it retrieves all data of the "products" collection from mongoDB and reassigns it to the elasticsearch "products" index.
   {
