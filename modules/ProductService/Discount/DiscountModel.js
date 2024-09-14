@@ -191,7 +191,7 @@ const DiscountModel = {
     });
   },
 
-  async deleteDiscount(id) {
+  deleteDiscount: async (id) => {
     return handleDBOperation(async (collection) => {
       const result = await collection.deleteOne({ _id: new ObjectId(id) });
       return result.deletedCount > 0;

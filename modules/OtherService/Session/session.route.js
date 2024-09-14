@@ -6,19 +6,13 @@ const router = express.Router();
 const routes = [
   {
     method: "post",
-    path: "/checkout",
+    path: "/",
     middleware: [authCustomerToken],
-    handler: SessionController.createSessionCheckout,
-  },
-  {
-    method: "post",
-    path: "/cart",
-    middleware: [authCustomerToken],
-    handler: SessionController.createSessionCartID,
+    handler: SessionController.createSessionData,
   },
   {
     method: "get",
-    path: "/get-session/:type",
+    path: "/get/:session_id",
     middleware: [authCustomerToken],
     handler: SessionController.getSessionData,
   },

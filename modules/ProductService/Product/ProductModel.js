@@ -178,15 +178,13 @@ const ProductModel = {
       return flashSaleProducts;
     }),
 
-  getTopSellProduct: async (limit = 10) =>
+  getTopSellProduct: async (limit = 20) =>
     handleDBOperation(async (collection) => {
-      const topProducts = await collection
+      return await collection
         .find({ is_active: "Y" })
         .sort({ units_sold: -1 })
         .limit(limit)
         .toArray();
-
-      return topProducts;
     }),
 
   getProductsByListProductId: async (productIds) =>

@@ -8,12 +8,13 @@ const routes = [
     method: "get",
     path: "/",
     middleware: [authCustomerToken],
-    handler: CartController.getCustomerCart,
+    handler: CartController.getCart,
   },
   {
     method: "get",
-    path: "/:cart_id",
-    handler: CartController.getCart,
+    path: "/by-product/:product_id",
+    middleware: [authCustomerToken],
+    handler: CartController.getCartItemByProductId,
   },
   {
     method: "post",
@@ -28,10 +29,16 @@ const routes = [
     handler: CartController.removeItem,
   },
   {
-    method: "patch",
-    path: "/",
+    method: "put",
+    path: "/quantity",
     middleware: [authCustomerToken],
-    handler: CartController.updateItemQuantity,
+    handler: CartController.updateQuantity,
+  },
+  {
+    method: "put",
+    path: "/sku",
+    middleware: [authCustomerToken],
+    handler: CartController.updateSku,
   },
   {
     method: "delete",

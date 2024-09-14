@@ -22,6 +22,11 @@ const routes = [
     handler: ProductController.getProductsBySellerId,
   },
   {
+    method: "get",
+    path: "/by-product-with-discount/:product_id",
+    handler: ProductController.getDiscountByProductId,
+  },
+  {
     method: "post",
     path: "/flash-sale",
     handler: ProductController.getFlashSaleProducts,

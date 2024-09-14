@@ -89,7 +89,24 @@ const ProductController = {
 
   getProductById: (req, res) =>
     handleRequest(req, res, async (req) => {
-      return await ProductModel.getProductById(req.params.product_id);
+      const product = await ProductModel.getProductById(req.params.product_id);
+      let discountValue = product.discount_value;
+      if (product.ongoing_discounts.length > 0) {
+        const discounts = await Promise.all(
+          product.ongoing_discounts.map((id) =>
+            DiscountModel.getDiscountById(id)
+          )
+        );
+        discountValue = Math.max(
+          ...discounts.map((discount) => discount.value)
+        );
+      }
+      product.discount_value = discountValue;
+      const ratingData = await FeedbackModel.getAverageRatingForProduct(
+        product._id
+      );
+      product.rating = ratingData.averageRating;
+      return product;
     }),
 
   getProductsBySellerId: (req, res) =>
@@ -137,54 +154,101 @@ const ProductController = {
       });
     }),
 
+  getDiscountByProductId: (req, res) =>
+    handleRequest(req, res, async (req) => {
+      const { product_id } = req.params;
+      const product = await ProductModel.getProductById(product_id);
+
+      return product.ongoing_discounts.length > 0
+        ? Promise.all(
+            product.ongoing_discounts.map((id) =>
+              DiscountModel.getDiscountById(id)
+            )
+          )
+        : [];
+    }),
+
   getFlashSaleProducts: (req, res) =>
     handleRequest(req, res, async (req) => {
       const flashSaleProducts = await ProductModel.getFlashSaleProduct();
+      return await Promise.all(
+        flashSaleProducts.map(async (product) => {
+          // Get the lowest price from variants
+          const lowestPrice = Math.min(
+            ...product.variants.map((variant) => variant.price)
+          );
 
-      const refinedProducts = flashSaleProducts.map((product) => ({
-        _id: product._id,
-        name: product.name,
-        image: product.images[0],
-        price:
-          product.price ||
-          (product.attributes
-            ? Math.min(
-                ...product.attributes.map((attr) =>
-                  parseFloat(attr.attributes_price)
-                )
+          // Process discount
+          let discountValue = product.discount_value;
+          if (product.ongoing_discounts.length > 0) {
+            const discounts = await Promise.all(
+              product.ongoing_discounts.map((id) =>
+                DiscountModel.getDiscountById(id)
               )
-            : null),
-        seller_id: product.seller_id,
-        discount_value: product.discount_value,
-        rating: product.rating,
-      }));
+            );
+            discountValue = Math.max(
+              ...discounts.map((discount) => discount.value)
+            );
+          }
 
-      return refinedProducts;
+          // Get average rating
+          const ratingData = await FeedbackModel.getAverageRatingForProduct(
+            product._id
+          );
+
+          return {
+            _id: product._id,
+            id: product._id,
+            name: product.name,
+            image: product.images[0],
+            price: lowestPrice,
+            discount_value: discountValue,
+            rating: ratingData.averageRating,
+          };
+        })
+      );
     }),
 
   getTopSellingProducts: (req, res) =>
     handleRequest(req, res, async (req) => {
       const limit = parseInt(req.query.limit) || 20;
       const topSellingProducts = await ProductModel.getTopSellProduct(limit);
+      return await Promise.all(
+        topSellingProducts.map(async (product) => {
+          // Get the lowest price from variants
+          const lowestPrice = Math.min(
+            ...product.variants.map((variant) => variant.price)
+          );
 
-      const refinedProducts = topSellingProducts.map((product) => ({
-        _id: product._id,
-        name: product.name,
-        image: product.images[0],
-        price:
-          product.price ||
-          (product.attributes
-            ? Math.min(
-                ...product.attributes.map((attr) =>
-                  parseFloat(attr.attributes_price)
-                )
+          // Process discount
+          let discountValue = product.discount_value;
+          if (product.ongoing_discounts.length > 0) {
+            const discounts = await Promise.all(
+              product.ongoing_discounts.map((id) =>
+                DiscountModel.getDiscountById(id)
               )
-            : null),
-        seller_id: product.seller_id,
-        rating: product.rating,
-      }));
+            );
+            discountValue = Math.max(
+              ...discounts.map((discount) => discount.value)
+            );
+          }
 
-      return refinedProducts;
+          // Get average rating
+          const ratingData = await FeedbackModel.getAverageRatingForProduct(
+            product._id
+          );
+
+          return {
+            _id: product._id,
+            id: product._id,
+            name: product.name,
+            image: product.images[0],
+            price: lowestPrice,
+            discount_value: discountValue,
+            rating: ratingData.averageRating,
+          };
+        })
+      );
     }),
 
   getProductsByListProductId: (req, res) =>

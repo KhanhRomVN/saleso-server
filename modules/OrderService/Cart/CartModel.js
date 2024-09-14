@@ -7,15 +7,8 @@ const COLLECTION_NAME = "carts";
 const CART_ITEM_SCHEMA = Joi.object({
   product_id: Joi.string().required(),
   quantity: Joi.number().integer().min(1).required(),
-  selected_attributes_value: Joi.string(),
+  selected_sku: Joi.string().required(),
 });
-
-const CART_SCHEMA = Joi.object({
-  customer_id: Joi.string().required(),
-  items: Joi.array().items(CART_ITEM_SCHEMA),
-  createdAt: Joi.date().default(Date.now),
-  updatedAt: Joi.date().default(Date.now),
-}).options({ abortEarly: false });
 
 const handleDBOperation = async (operation) => {
   const db = getDB();
@@ -28,7 +21,7 @@ const handleDBOperation = async (operation) => {
 };
 
 const CartModel = {
-  getCustomerCart: async (customer_id) => {
+  getCart: async (customer_id) => {
     return handleDBOperation(async (collection) => {
       const cart = await collection.findOne({
         customer_id: customer_id,
@@ -36,87 +29,82 @@ const CartModel = {
       return cart || { customer_id, items: [] };
     });
   },
-
-  getCartById: async (product_id) => {
+  getCartItemByProductId: async (customer_id, product_id) => {
     return handleDBOperation(async (collection) => {
-      const cart = await collection.findOne({
-        "items.product_id": product_id,
-      });
+      const cart = await collection.findOne(
+        {
+          customer_id: customer_id,
+          "items.product_id": product_id,
+        },
+        { projection: { "items.$": 1 } }
+      );
 
-      if (!cart) {
-        throw new Error("Product not found in any cart");
+      if (cart && cart.items && cart.items.length > 0) {
+        const { product_id, selected_sku, quantity } = cart.items[0];
+        return { product_id, selected_sku, quantity };
       }
 
-      const item = cart.items.find((item) => item.product_id === product_id);
-
-      if (!item) {
-        throw new Error("Product not found in the cart");
-      }
-
-      const result = {
-        product_id: item.product_id,
-        quantity: item.quantity,
-      };
-
-      if (item.selected_attributes_value !== undefined) {
-        result.selected_attributes_value = item.selected_attributes_value;
-      }
-
-      return result;
+      return null;
     });
   },
-
   addItem: async (customer_id, cartData) => {
     return handleDBOperation(async (collection) => {
       const { error } = CART_ITEM_SCHEMA.validate(cartData);
       if (error) throw new Error(error.details[0].message);
-
       await collection.updateOne(
         { customer_id: customer_id },
         {
           $push: { items: cartData },
-          $setOnInsert: { createdAt: new Date() },
-          $set: { updatedAt: new Date() },
+          $setOnInsert: { created_at: new Date() },
         },
         { upsert: true }
       );
     });
   },
-
   removeItem: async (customer_id, product_id) => {
     return handleDBOperation(async (collection) => {
       await collection.updateOne(
         { customer_id: new ObjectId(customer_id) },
         {
           $pull: { items: { product_id: new ObjectId(product_id) } },
-          $set: { updatedAt: new Date() },
         }
       );
     });
   },
-
-  updateItemQuantity: async (customer_id, product_id, quantity) => {
+  updateQuantity: async (customer_id, product_id, quantity) => {
     return handleDBOperation(async (collection) => {
-      const { error } = CART_ITEM_SCHEMA.validate({ product_id, quantity });
-      if (error) throw new Error(error.details[0].message);
-
       await collection.updateOne(
         {
           customer_id: customer_id,
           "items.product_id": product_id,
         },
         {
-          $set: { "items.$.quantity": quantity, updatedAt: new Date() },
+          $set: { "items.$.quantity": quantity },
         }
       );
     });
   },
-
+  updateSku: async (customer_id, product_id, sku) => {
+    return handleDBOperation(async (collection) => {
+      console.log(customer_id);
+      console.log(product_id);
+      console.log(sku);
+      await collection.updateOne(
+        {
+          customer_id: customer_id,
+          "items.product_id": product_id,
+        },
+        {
+          $set: { "items.$.selected_sku": sku },
+        }
+      );
+    });
+  },
   clearCart: async (customer_id) => {
     return handleDBOperation(async (collection) => {
       await collection.updateOne(
         { customer_id: customer_id },
-        { $set: { items: [], updatedAt: new Date() } }
+        { $set: { items: [] } }
       );
     });
   },

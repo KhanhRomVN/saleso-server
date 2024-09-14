@@ -57,9 +57,6 @@ const DiscountController = {
       );
     }),
 
-  getDiscountByProductId: (req, res) =>
-    handleRequest(req, res, async (req) => {}),
-
   getDiscountById: (req, res) =>
     handleRequest(req, res, async (req) => {
       return await DiscountModel.getDiscountById(req.params.discount_id);

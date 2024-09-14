@@ -5,7 +5,6 @@ const {
   CartModel,
 } = require("../../../models");
 const logger = require("../../../config/logger");
-const { error } = require("winston");
 
 const handleRequest = async (req, res, operation) => {
   try {
@@ -31,7 +30,7 @@ const OrderController = {
           await ProductModel.updateStock(
             item.product_id,
             item.quantity,
-            item.selected_attributes_value
+            item.sku
           );
         })
       );
@@ -39,9 +38,7 @@ const OrderController = {
       // create order
       const processedOrders = await Promise.all(
         orderItems.map(async (item) => {
-          const product = await ProductModel.getProductByProdId(
-            item.product_id
-          );
+          const product = await ProductModel.getProductById(item.product_id);
 
           return {
             ...item,

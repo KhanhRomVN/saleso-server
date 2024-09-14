@@ -4,14 +4,10 @@ const { ObjectId } = require("mongodb");
 
 const COLLECTION_NAME = "payments";
 const COLLECTION_SCHEMA = Joi.object({
-  customer_id: Joi.string().required(),
-  seller_id: Joi.string().required(),
   order_id: Joi.string().required(),
-  invoice_id: Joi.string().required(),
-  payment_method: Joi.string().valid("prepaid", "postpaid").required(),
-  payment_status: Joi.string()
-    .valid("pending", "completed", "failed")
-    .required(),
+  type: Joi.string().required(),
+  method: Joi.string().valid("prepaid", "postpaid").required(),
+  status: Joi.string().valid("pending", "completed", "failed").required(),
   created_at: Joi.date().default(Date.now),
   updated_at: Joi.date().default(Date.now),
 }).options({ abortEarly: false });

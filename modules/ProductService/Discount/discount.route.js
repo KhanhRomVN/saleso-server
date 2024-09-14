@@ -22,12 +22,6 @@ const routes = [
   },
   {
     method: "get",
-    path: "/by-product/:product_id",
-    middleware: [authToken],
-    handler: DiscountController.getDiscountByProductId,
-  },
-  {
-    method: "get",
     path: "/get/:discount_id",
     handler: DiscountController.getDiscountById,
   },

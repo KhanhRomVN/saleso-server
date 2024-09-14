@@ -4,16 +4,15 @@ const { ObjectId } = require("mongodb");
 
 const COLLECTION_NAME = "orders";
 const COLLECTION_SCHEMA = Joi.object({
-  customer_id: Joi.string().required(),
-  seller_id: Joi.string().required(),
   product_id: Joi.string().required(),
-  selected_attributes_value: Joi.string(),
+  customer_id: Joi.string().required(),
+  sku: Joi.string().required(),
   quantity: Joi.number().integer().min(1).required(),
-  total_amount: Joi.number().required(),
-  discount_id: Joi.string(),
   shipping_fee: Joi.number().min(0).required(),
   shipping_address: Joi.string().required(),
-  order_status: Joi.string().valid("pending", "accepted", "refused").required(),
+  applied_discount: Joi.string(),
+  total_amount: Joi.number().required(),
+  status: Joi.string().valid("pending", "accepted", "refused").required(),
   create_at: Joi.date().default(Date.now),
   update_at: Joi.date().default(Date.now),
 }).options({ abortEarly: false });

@@ -18,67 +18,46 @@ const handleRequest = async (req, res, operation) => {
 };
 
 const CartController = {
-  getCustomerCart: (req, res) =>
+  getCart: (req, res) =>
     handleRequest(req, res, async (req) => {
       const customer_id = req.user._id.toString();
-      const cart = await CartModel.getCustomerCart(customer_id);
+      const cart = await CartModel.getCart(customer_id);
 
-      // Remove createdAt and updatedAt
-      const { createdAt, updatedAt, ...cartData } = cart;
-
-      // Process items
-      const processedItems = await Promise.all(
+      // Map over the items array to add product details
+      const itemsWithDetails = await Promise.all(
         cart.items.map(async (item) => {
-          const product = await ProductModel.getProductByProdId(
-            item.product_id
-          );
-
-          let processedItem = {
+          const product = await ProductModel.getProductById(item.product_id);
+          return {
+            ...item,
             product_id: product._id,
-            name: product.name,
             image: product.images[0],
-            quantity: item.quantity,
+            name: product.name,
+            variants: product.variants,
           };
-
-          if (product.attributes) {
-            // Product with attributes
-            const selectedAttribute = product.attributes.find(
-              (attr) => attr.attributes_value === item.selected_attributes_value
-            );
-
-            if (selectedAttribute) {
-              processedItem.stock = selectedAttribute.attributes_quantity;
-              processedItem.price = selectedAttribute.attributes_price;
-              processedItem.selected_attributes_value =
-                item.selected_attributes_value;
-            }
-          } else {
-            // Product without attributes
-            processedItem.stock = product.stock;
-            processedItem.price = product.price;
-          }
-
-          return processedItem;
         })
       );
 
+      // Return the updated cart object
       return {
-        ...cartData,
-        items: processedItems,
+        ...cart,
+        items: itemsWithDetails,
       };
     }),
 
-  getCart: (req, res) =>
+  getCartItemByProductId: (req, res) =>
     handleRequest(req, res, async (req) => {
-      const { cart_id } = req.params;
-      return await CartModel.getCartById(cart_id);
+      const { product_id } = req.params;
+      return await CartModel.getCartItemByProductId(
+        req.user._id.toString(),
+        product_id
+      );
     }),
 
   addItem: (req, res) =>
     handleRequest(req, res, async (req) => {
       const customer_id = req.user._id.toString();
       await CartModel.addItem(customer_id, req.body);
-      await ProductAnalyticModel.updateCartProduct(req.body.product_id);
+      // await ProductAnalyticModel.updateCartProduct(req.body.product_id);
       return { message: "Item added to cart successfully" };
     }),
 
@@ -90,12 +69,20 @@ const CartController = {
       return { message: "Item removed from cart successfully" };
     }),
 
-  updateItemQuantity: (req, res) =>
+  updateQuantity: (req, res) =>
     handleRequest(req, res, async (req) => {
       const customer_id = req.user._id.toString();
       const { product_id, quantity } = req.body;
-      await CartModel.updateItemQuantity(customer_id, product_id, quantity);
-      return { message: "Item quantity updated successfully" };
+      await CartModel.updateQuantity(customer_id, product_id, quantity);
+      return { message: "Updated quanity successfully" };
+    }),
+
+  updateSku: (req, res) =>
+    handleRequest(req, res, async (req) => {
+      const customer_id = req.user._id.toString();
+      const { product_id, sku } = req.body;
+      await CartModel.updateSku(customer_id, product_id, sku);
+      return { message: "Updated sku successfully" };
     }),
 
   clearCart: (req, res) =>
