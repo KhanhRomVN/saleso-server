@@ -3,6 +3,7 @@ const {
   DiscountModel,
   FeedbackModel,
   ProductAnalyticModel,
+  ProductLogModel,
 } = require("../../../models");
 const logger = require("../../../config/logger");
 const { client } = require("../../../config/elasticsearchClient");
@@ -47,26 +48,44 @@ const checkUserOwnership = async (product_id, seller_id) => {
 };
 
 const ProductController = {
-  createProduct: async (req, res) => {
-    try {
+  createProduct: async (req, res) =>
+    handleRequest(req, res, async (req) => {
       const productData = req.body;
       const seller_id = req.user._id.toString();
-
-      // Generate initial slug
+      // create slug
       const baseSlug = slugify(productData.name);
-
-      // Get unique slug
       const uniqueSlug = await ProductModel.getUniqueSlug(baseSlug);
-
-      // Add slug to productData
       productData.slug = uniqueSlug;
-
-      const result = await ProductModel.createProduct(productData, seller_id);
-      res.status(201).json(result);
-    } catch (error) {
-      res.status(400).json({ error: error.message });
-    }
-  },
+      // create product
+      const product = await ProductModel.createProduct(productData, seller_id);
+      // create product analytic
+      const month = currentDate.getMonth() + 1;
+      const year = currentDate.getFullYear();
+      const productAnalyticData = {
+        product_id: product.product_id,
+        year,
+        month,
+        revenue: 0,
+        visitor: 0,
+        wishlist_additions: 0,
+        cart_additions: 0,
+        orders_placed: 0,
+        orders_cancelled: 0,
+        orders_successful: 0,
+        reversal: 0,
+        discount_applications: 0,
+      };
+      await ProductAnalyticModel.newProductAnalytic(productAnalyticData);
+      // create product log
+      const productLogData = {
+        product_id: product.product_id,
+        title: "Create new product",
+        content: `Seller with id-[${seller_id}] has successfully created a product with id-[${product.product_id}]`,
+        created_at: new Date(),
+      };
+      await ProductLogModel.createLog(productLogData);
+      return { message: "Create product successfully" };
+    }),
 
   getProductById: (req, res) =>
     handleRequest(req, res, async (req) => {
@@ -98,6 +117,12 @@ const ProductController = {
           0
         );
 
+        const applied_discounts = [
+          ...product.upcoming_discounts,
+          ...product.ongoing_discounts,
+          ...product.expired_discounts,
+        ];
+
         return {
           _id: product._id,
           name: product.name,
@@ -107,6 +132,7 @@ const ProductController = {
           seller_id: product.seller_id,
           price: price,
           stock: stock,
+          applied_discounts,
         };
       });
     }),
@@ -496,11 +522,15 @@ const ProductController = {
     handleRequest(req, res, async (req) => {
       const { product_id } = req.params;
       const seller_id = req.user._id.toString();
-
-      // Check if the user owns the product
       await checkUserOwnership(product_id, seller_id);
-
       await ProductModel.toggleActive(product_id);
+      // create product log
+      const productLogData = {
+        product_id: product_id,
+        title: "The seller has changed the active product",
+        created_at: new Date(),
+      };
+      await ProductLogModel.createLog(productLogData);
       return { message: "Update active successfully" };
     }),
 
@@ -509,19 +539,23 @@ const ProductController = {
       const { product_id } = req.params;
       const { sku, stockValue } = req.body;
       const seller_id = req.user._id.toString();
-
-      // Check if the user owns the product
       await checkUserOwnership(product_id, seller_id);
-
       if (!Number.isInteger(stockValue) || stockValue <= 0) {
         throw new Error("Stock value must be a positive integer");
       }
-
       const result = await ProductModel.updateStock(
         product_id,
         stockValue,
         sku
       );
+      // create product log
+      const productLogData = {
+        product_id,
+        title: "The seller has added the product to the stock",
+        content: `The seller added ${stockValue} product with an SKU of ${sku} to the stock`,
+        created_at: new Date(),
+      };
+      await ProductLogModel.createLog(productLogData);
       return {
         message: "Stock added successfully",
         modifiedCount: result.modifiedCount,
@@ -557,6 +591,14 @@ const ProductController = {
         -stockValue,
         sku
       );
+      // create product log
+      const productLogData = {
+        product_id,
+        title: "The seller has removed the product to the stock",
+        content: `The seller removed ${stockValue} product with an SKU of ${sku} to the stock`,
+        created_at: new Date(),
+      };
+      await ProductLogModel.createLog(productLogData);
       return {
         message: "Stock removed successfully",
         modifiedCount: result.modifiedCount,

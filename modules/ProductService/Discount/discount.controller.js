@@ -1,6 +1,11 @@
 // DiscountController.js
 
-const { DiscountModel, ProductModel } = require("../../../models");
+const {
+  DiscountModel,
+  ProductModel,
+  ProductLogModel,
+  DiscountUsageModel,
+} = require("../../../models");
 const logger = require("../../../config/logger");
 const { AppError, handleError } = require("../../../service/errorHandler");
 
@@ -42,7 +47,7 @@ const DiscountController = {
         discountData.end_date
       );
       discountData.is_active = true;
-      return await DiscountModel.createDiscount(discountData);
+      await DiscountModel.createDiscount(discountData);
     }),
 
   getDiscountsBySellerId: (req, res) =>
@@ -51,6 +56,9 @@ const DiscountController = {
         req.user._id.toString()
       );
     }),
+
+  getDiscountByProductId: (req, res) =>
+    handleRequest(req, res, async (req) => {}),
 
   getDiscountById: (req, res) =>
     handleRequest(req, res, async (req) => {
@@ -84,6 +92,14 @@ const DiscountController = {
         discount_id,
         discount.status
       );
+      // create product log
+      const productLogData = {
+        product_id,
+        title: "Applied Discount To Product",
+        content: `The seller [${req.user._id.toString()}] has applied discount [${discount_id}] to product`,
+        created_at: new Date(),
+      };
+      await ProductLogModel.createLog(productLogData);
       return { message: "Discount applied successfully" };
     }),
 
@@ -100,6 +116,14 @@ const DiscountController = {
         discount_id,
         discount.status
       );
+      // create product log
+      const productLogData = {
+        product_id,
+        title: "Removed Discount To Product",
+        content: `The seller [${req.user._id.toString()}] has removed discount [${discount_id}] to product`,
+        created_at: new Date(),
+      };
+      await ProductLogModel.createLog(productLogData);
       return { message: "Discount removed successfully" };
     }),
 

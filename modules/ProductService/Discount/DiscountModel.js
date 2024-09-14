@@ -98,6 +98,13 @@ const DiscountModel = {
     );
   },
 
+  async getDiscountsByIds(discount_ids) {
+    return handleDBOperation(async (collection) => {
+      const objectIds = discount_ids.map((id) => new ObjectId(id));
+      return await collection.find({ _id: { $in: objectIds } }).toArray();
+    });
+  },
+
   async toggleDiscountStatus(id) {
     return handleDBOperation(async (collection) => {
       const discount = await collection.findOne({ _id: new ObjectId(id) });

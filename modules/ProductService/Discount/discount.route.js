@@ -1,6 +1,10 @@
 const express = require("express");
 const { DiscountController } = require("../../../controllers");
-const { authSellerToken } = require("../../../middleware/authToken");
+const {
+  authSellerToken,
+  authToken,
+  authCustomerToken,
+} = require("../../../middleware/authToken");
 const router = express.Router();
 
 const routes = [
@@ -18,6 +22,12 @@ const routes = [
   },
   {
     method: "get",
+    path: "/by-product/:product_id",
+    middleware: [authToken],
+    handler: DiscountController.getDiscountByProductId,
+  },
+  {
+    method: "get",
     path: "/get/:discount_id",
     handler: DiscountController.getDiscountById,
   },
@@ -29,19 +39,19 @@ const routes = [
   },
   {
     method: "put",
-    path: "/products/:product_id/discounts/:discount_id",
+    path: "/apply/products/:product_id/discounts/:discount_id",
     middleware: [authSellerToken],
     handler: DiscountController.applyDiscount,
   },
   {
     method: "put",
-    path: "/products/:product_id/discounts/:discount_id",
+    path: "/remove/products/:product_id/discounts/:discount_id",
     middleware: [authSellerToken],
     handler: DiscountController.removeDiscount,
   },
   {
     method: "delete",
-    path: "/:discount_id",
+    path: "/discount_id",
     middleware: [authSellerToken],
     handler: DiscountController.deleteDiscount,
   },

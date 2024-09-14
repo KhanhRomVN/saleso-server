@@ -3,6 +3,7 @@ const UserModel = require("./modules/UserService/User/UserModel");
 const UserDetailModel = require("./modules/UserService/User/UserDetailModel");
 // Product Service
 const ProductModel = require("./modules/ProductService/Product/ProductModel");
+const ProductLogModel = require("./modules/ProductService/ProductLog/ProductLogModel");
 const CategoryModel = require("./modules/ProductService/Category/CategoryModel");
 const FeedbackModel = require("./modules/ProductService/Feedback/FeedbackModel");
 const DiscountModel = require("./modules/ProductService/Discount/DiscountModel");
@@ -45,4 +46,5 @@ module.exports = {
   CustomerAnalyticModel,
   SessionModel,
   VariantModel,
+  ProductLogModel,
 };
