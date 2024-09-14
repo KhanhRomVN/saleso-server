@@ -60,6 +60,24 @@ const routes = [
     handler: ProductController.updateProduct,
   },
   {
+    method: "put",
+    path: "/toggle/:product_id",
+    middleware: [authSellerToken],
+    handler: ProductController.toggleActive,
+  },
+  {
+    method: "put",
+    path: "/add-stock/:product_id",
+    middleware: [authSellerToken],
+    handler: ProductController.addStock,
+  },
+  {
+    method: "delete",
+    path: "/del-stock/:product_id",
+    middleware: [authSellerToken],
+    handler: ProductController.delStock,
+  },
+  {
     method: "delete",
     path: "/delete/:product_id",
     middleware: [authSellerToken],

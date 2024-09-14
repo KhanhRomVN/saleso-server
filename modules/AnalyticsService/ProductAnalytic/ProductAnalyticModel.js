@@ -45,9 +45,7 @@ const ProductAnalyticModel = {
   updateValueAnalyticProduct: async (product_id, key, value) => {
     return handleDBOperation(async (collection) => {
       // [1]: Get current year and month
-      const currentDate = new Date();
-      const currentYear = currentDate.getFullYear();
-      const currentMonth = currentDate.getMonth() + 1; // JavaScript months are 0-indexed
+      // JavaScript months are 0-indexed
 
       // [2]: Check if data exists for the current year and month
       let existingData = await collection.findOne({

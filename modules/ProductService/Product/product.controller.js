@@ -7,21 +7,16 @@ const {
 const logger = require("../../../config/logger");
 const { client } = require("../../../config/elasticsearchClient");
 
-const createDescriptionDiscount = (discount) => {
-  if (!discount) return null;
-
-  switch (discount.type) {
-    case "percentage":
-      return `Discount ${discount.value}%`;
-    case "fixed":
-      return `Discount $${discount.value}`;
-    case "buy_x_get_y":
-      return `Buy ${discount.value.buyQuantity} Get ${discount.value.getFreeQuantity} Free`;
-    case "flash-sale":
-      return `Flash Sale ${discount.value}%`;
-    default:
-      return "Invalid discount type";
-  }
+const slugify = (text) => {
+  return text
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/[^\w\-]+/g, "")
+    .replace(/\-\-+/g, "-")
+    .replace(/^-+/, "")
+    .replace(/-+$/, "");
 };
 
 const handleRequest = async (req, res, operation) => {
@@ -37,7 +32,7 @@ const handleRequest = async (req, res, operation) => {
 };
 
 const checkUserOwnership = async (product_id, seller_id) => {
-  const product = await ProductModel.getProductByProdId(product_id);
+  const product = await ProductModel.getProductById(product_id);
   if (!product) {
     const error = new Error("Product not found");
     error.status = 404;
@@ -52,38 +47,26 @@ const checkUserOwnership = async (product_id, seller_id) => {
 };
 
 const ProductController = {
-  createProduct: (req, res) =>
-    handleRequest(req, res, async (req) => {
-      const result = await ProductModel.createProduct(
-        req.body,
-        req.user._id.toString()
-      );
+  createProduct: async (req, res) => {
+    try {
+      const productData = req.body;
+      const seller_id = req.user._id.toString();
 
-      const currentDate = new Date();
-      const currentYear = currentDate.getFullYear();
-      const currentMonth = currentDate.getMonth() + 1;
+      // Generate initial slug
+      const baseSlug = slugify(productData.name);
 
-      const productAnalyticData = {
-        product_id: result.product_id.toString(),
-        year: currentYear,
-        month: currentMonth,
-        revenue: 0,
-        visitor: 0,
-        wishlist_additions: 0,
-        cart_additions: 0,
-        orders_placed: 0,
-        orders_cancelled: 0,
-        orders_successful: 0,
-        reversal: 0,
-        discount_applications: 0,
-      };
+      // Get unique slug
+      const uniqueSlug = await ProductModel.getUniqueSlug(baseSlug);
 
-      await ProductAnalyticModel.newProductAnalytic(productAnalyticData);
-      return {
-        message: "Create product successfully",
-        product_id: result.product_id,
-      };
-    }),
+      // Add slug to productData
+      productData.slug = uniqueSlug;
+
+      const result = await ProductModel.createProduct(productData, seller_id);
+      res.status(201).json(result);
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  },
 
   getProductById: (req, res) =>
     handleRequest(req, res, async (req) => {
@@ -92,7 +75,40 @@ const ProductController = {
 
   getProductsBySellerId: (req, res) =>
     handleRequest(req, res, async (req) => {
-      return ProductModel.getListProductBySellerId(req.user._id.toString());
+      const products = await ProductModel.getListProductBySellerId(
+        req.user._id.toString()
+      );
+      return products.map((product) => {
+        // Calculate price
+        let price;
+        if (product.variants.length > 1) {
+          const prices = product.variants.map((variant) => variant.price);
+          const minPrice = Math.min(...prices);
+          const maxPrice = Math.max(...prices);
+          price = `${minPrice}$ - ${maxPrice}$`;
+        } else if (product.variants.length === 1) {
+          price = product.variants[0].price;
+        } else {
+          price = null;
+        }
+
+        // Calculate total stock
+        const stock = product.variants.reduce(
+          (total, variant) => total + variant.stock,
+          0
+        );
+
+        return {
+          _id: product._id,
+          name: product.name,
+          image: product.images[0] || null,
+          origin: product.origin,
+          is_active: product.is_active,
+          seller_id: product.seller_id,
+          price: price,
+          stock: stock,
+        };
+      });
     }),
 
   getFlashSaleProducts: (req, res) =>
@@ -462,27 +478,96 @@ const ProductController = {
 
   updateProduct: async (req, res) =>
     handleRequest(req, res, async (req) => {
-      await checkUserOwnership(req.params.product_id, req.user._id.toString());
-      const { _id, units_sold, discounts, reviews, seller_id, ...updateData } =
-        req.body;
-      const updatedProduct = await ProductModel.updateProduct(
-        req.params.product_id,
-        updateData
+      const { product_id } = req.params;
+      const { keys, values } = req.body;
+      const seller_id = req.user._id.toString();
+
+      // Check if the user owns the product
+      await checkUserOwnership(product_id, seller_id);
+
+      const result = await ProductModel.updateProduct(product_id, keys, values);
+      return {
+        message: "Product updated successfully",
+        modifiedCount: result.modifiedCount,
+      };
+    }),
+
+  toggleActive: async (req, res) =>
+    handleRequest(req, res, async (req) => {
+      const { product_id } = req.params;
+      const seller_id = req.user._id.toString();
+
+      // Check if the user owns the product
+      await checkUserOwnership(product_id, seller_id);
+
+      await ProductModel.toggleActive(product_id);
+      return { message: "Update active successfully" };
+    }),
+
+  addStock: async (req, res) =>
+    handleRequest(req, res, async (req) => {
+      const { product_id } = req.params;
+      const { sku, stockValue } = req.body;
+      const seller_id = req.user._id.toString();
+
+      // Check if the user owns the product
+      await checkUserOwnership(product_id, seller_id);
+
+      if (!Number.isInteger(stockValue) || stockValue <= 0) {
+        throw new Error("Stock value must be a positive integer");
+      }
+
+      const result = await ProductModel.updateStock(
+        product_id,
+        stockValue,
+        sku
       );
       return {
-        message: "Update product data successfully",
-        product: updatedProduct,
+        message: "Stock added successfully",
+        modifiedCount: result.modifiedCount,
+      };
+    }),
+
+  delStock: async (req, res) =>
+    handleRequest(req, res, async (req) => {
+      const { product_id } = req.params;
+      const { sku, stockValue } = req.body;
+      const seller_id = req.user._id.toString();
+
+      // Check if the user owns the product
+      await checkUserOwnership(product_id, seller_id);
+
+      if (!Number.isInteger(stockValue) || stockValue <= 0) {
+        throw new Error("Stock value must be a positive integer");
+      }
+
+      const product = await ProductModel.getProductById(product_id);
+      const variant = product.variants.find((v) => v.sku === sku);
+
+      if (!variant) {
+        throw new Error("SKU not found for this product");
+      }
+
+      if (variant.stock < stockValue) {
+        throw new Error("Insufficient stock to remove");
+      }
+
+      const result = await ProductModel.updateStock(
+        product_id,
+        -stockValue,
+        sku
+      );
+      return {
+        message: "Stock removed successfully",
+        modifiedCount: result.modifiedCount,
       };
     }),
 
   deleteProduct: async (req, res) => {
-    try {
+    handleRequest(req, res, async (req) => {
       await ProductModel.deleteProduct(req.params.product_id);
-      res.json({ message: "Product deleted successfully" });
-    } catch (error) {
-      console.error("Error deleting product:", error);
-      res.status(500).json({ error: "Internal server error" });
-    }
+      return { message: "Product deleted successfully" };
+    });
   },
 
   refreshProduct: async (req, res) =>
