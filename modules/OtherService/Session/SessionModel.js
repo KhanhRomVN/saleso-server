@@ -46,6 +46,12 @@ const SessionModel = {
     });
   },
 
+  cleanSession: async (customer_id) => {
+    await handleDBOperation(async (collection) => {
+      await collection.deleteMany({ customer_id });
+    });
+  },
+
   cleanExpiredSessions: async () => {
     await handleDBOperation(async (collection) => {
       const now = new Date();

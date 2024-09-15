@@ -5,6 +5,7 @@ const {
   CartModel,
 } = require("../../../models");
 const logger = require("../../../config/logger");
+const { getDB, startSession } = require("../../../config/mongoDB");
 
 const handleRequest = async (req, res, operation) => {
   try {
@@ -23,62 +24,74 @@ const OrderController = {
     handleRequest(req, res, async (req) => {
       const customer_id = req.user._id.toString();
       const { orderItems, payment_method, payment_status } = req.body;
+      console.log(req.body);
 
-      // update stock product
-      await Promise.all(
-        orderItems.map(async (item) => {
-          await ProductModel.updateStock(
-            item.product_id,
-            item.quantity,
-            item.sku
+      if (!Array.isArray(orderItems) || orderItems.length === 0) {
+        throw new Error("Invalid order items");
+      }
+
+      const session = await startSession();
+
+      try {
+        let createdOrderIds;
+
+        await session.withTransaction(async () => {
+          // 1. Process orders and update stock
+          const processedOrders = await Promise.all(
+            orderItems.map(async (item) => {
+              const product = await ProductModel.getProductById(item.product_id, session);
+              if (!product) {
+                throw new Error(`Product not found: ${item.product_id}`);
+              }
+
+              await ProductModel.updateStock(item.product_id, -item.quantity, item.sku, session);
+
+              return {
+                ...item,
+                customer_id,
+                seller_id: product.seller_id,
+                order_status: "pending",
+              };
+            })
           );
-        })
-      );
 
-      // create order
-      const processedOrders = await Promise.all(
-        orderItems.map(async (item) => {
-          const product = await ProductModel.getProductById(item.product_id);
+          // 2. Create orders
+          createdOrderIds = await OrderModel.createOrders(processedOrders, customer_id, session);
 
-          return {
-            ...item,
-            customer_id,
-            seller_id: product.seller_id,
-            order_status: "pending",
-          };
-        })
-      );
+          // 3. Create payments
+          await Promise.all(
+            createdOrderIds.map(async (order) => {
+              const paymentData = {
+                order_id: order.order_id,
+                customer_id,
+                seller_id: order.seller_id,
+                method: payment_method,
+                status: payment_status,
+              };
+              await PaymentModel.createPayment(paymentData, session);
+            })
+          );
 
-      const orderIds = await Promise.all(
-        processedOrders.map(async (item) => {
-          const { order_id, seller_id } = await OrderModel.createOrder(item);
-          return {
-            order_id,
-            seller_id,
-          };
-        })
-      );
+          // 4. Remove items from cart
+          await Promise.all(
+            orderItems.map(async (item) => {
+              await CartModel.removeItem(customer_id, item.product_id, session);
+            })
+          );
 
-      // create payment
-      await Promise.all(
-        orderIds.map(async (order) => {
-          const paymentData = {
-            ...order,
-            customer_id,
-            payment_method,
-            payment_status,
-          };
-          return await PaymentModel.createPayment(paymentData);
-        })
-      );
+          logger.info(`Orders created successfully for customer ${customer_id}`);
+        });
 
-      // drop product cart
-      await Promise.all(
-        orderItems.map(async (item) => {
-          await CartModel.removeItem(item.customer_id, item.product_id);
-        })
-      );
-      return { message: "Create Order Successful" };
+        return { 
+          message: "Order created successfully", 
+          orderIds: createdOrderIds.map(order => order.order_id) 
+        };
+      } catch (error) {
+        logger.error(`Error creating order for customer ${customer_id}: ${error.message}`);
+        throw error;
+      } finally {
+        await session.endSession();
+      }
     }),
 
   getListOrder: (req, res) =>

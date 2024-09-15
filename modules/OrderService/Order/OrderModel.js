@@ -2,17 +2,18 @@ const { getDB } = require("../../../config/mongoDB");
 const Joi = require("joi");
 const { ObjectId } = require("mongodb");
 
-const COLLECTION_NAME = "orders";
-const COLLECTION_SCHEMA = Joi.object({
+const COLLECTION_NAME = "orders"; 
+const COLLECTION_SCHEMA = Joi.object({  
   product_id: Joi.string().required(),
-  customer_id: Joi.string().required(),
+  seller_id: Joi.string().required(),
+  customer_id: Joi.string().required(), 
   sku: Joi.string().required(),
   quantity: Joi.number().integer().min(1).required(),
   shipping_fee: Joi.number().min(0).required(),
   shipping_address: Joi.string().required(),
   applied_discount: Joi.string(),
   total_amount: Joi.number().required(),
-  status: Joi.string().valid("pending", "accepted", "refused").required(),
+  order_status: Joi.string().valid("pending", "accepted", "refused").required(),
   create_at: Joi.date().default(Date.now),
   update_at: Joi.date().default(Date.now),
 }).options({ abortEarly: false });
@@ -28,30 +29,31 @@ const handleDBOperation = async (operation) => {
 };
 
 const OrderModel = {
-  createOrder: async (orderData) => {
-    const { error } = COLLECTION_SCHEMA.validate(orderData);
-    if (error) throw new Error(error.details.map((d) => d.message).join(", "));
-
+  createOrders: async (orderItems, customer_id) => {
     return handleDBOperation(async (collection) => {
-      const result = await collection.insertOne(orderData);
-      return {
-        seller_id: orderData.seller_id,
-        order_id: result.insertedId.toString(),
-      };
+      const orders = orderItems.map(item => ({
+        ...item,
+        customer_id,
+        order_status: "pending",
+        created_at: new Date(),
+        updated_at: new Date()
+      }));
+
+      const result = await collection.insertMany(orders);
+
+      return Object.keys(result.insertedIds).map(key => ({
+        seller_id: orders[key].seller_id,
+        order_id: result.insertedIds[key].toString()
+      }));
     });
   },
 
   getListOrder: async (id, role, status) => {
     return handleDBOperation(async (collection) => {
-      if (role === "customer") {
-        return await collection
-          .find({ customer_id: id, order_status: status })
-          .toArray();
-      } else if (role === "seller") {
-        return await collection
-          .find({ seller_id: id, order_status: status })
-          .toArray();
-      }
+      const query = { order_status: status };
+      query[role === "customer" ? "customer_id" : "seller_id"] = id;
+
+      return await collection.find(query).toArray();
     });
   },
 

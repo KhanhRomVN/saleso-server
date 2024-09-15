@@ -28,6 +28,13 @@ const SessionController = {
       const customer_id = req.user._id.toString();
       return await SessionModel.getSessionData(customer_id, session_id);
     }),
+
+  cleanSession: (req, res) =>
+    handleRequest(req, res, async (req) => {
+      const { session_id } = req.params;
+      const customer_id = req.user._id.toString();
+      return await SessionModel.cleanSession(customer_id, session_id);
+    }),
 };
 
 const cleanExpiredSessions = async () => {

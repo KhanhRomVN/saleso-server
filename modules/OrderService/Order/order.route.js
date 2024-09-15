@@ -4,33 +4,32 @@ const {
   authCustomerToken,
   authToken,
 } = require("../../../middleware/authToken");
+const { rateLimiter } = require('../../../middleware/rateLimiter');
 const router = express.Router();
 
 const routes = [
   {
     method: "post",
     path: "/",
-    middleware: [authCustomerToken],
-    handler: OrderController.createOrder,
+    middleware: [authCustomerToken, rateLimiter],
+    handler: OrderController.createOrder, 
   },
-  // get list order status [pending, accepted, refused] với 2 role [customer, seller]
   {
     method: "get",
     path: "/:status",
-    middleware: [authToken],
-    handler: OrderController.getListOrder,
+    middleware: [authToken, rateLimiter],
+    handler: OrderController.getListOrder,  
   },
-  // get order with more data
   {
     method: "get",
     path: "/get/:order_id",
+    middleware: [authToken, rateLimiter],
     handler: OrderController.getOrder,
   },
-  // customer can cancel order when pending
   {
     method: "delete",
     path: "/cancel/:order_id",
-    middleware: [authCustomerToken],
+    middleware: [authCustomerToken, rateLimiter],
     handler: OrderController.cancelOrder,
   },
 ];

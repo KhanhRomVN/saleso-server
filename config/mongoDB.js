@@ -42,11 +42,25 @@ class DatabaseConnection {
     return this.db;
   }
 
+  getClient() {
+    if (!this.client) {
+      throw new Error("Database client not initialized. Call connect() first.");
+    }
+    return this.client;
+  }
+
   async close() {
     if (this.client) {
       await this.client.close();
       logger.info("Database connection closed");
     }
+  }
+
+  async startSession() {
+    if (!this.client) {
+      throw new Error("Database client not initialized. Call connect() first.");
+    }
+    return this.client.startSession();
   }
 }
 
@@ -55,5 +69,7 @@ const dbConnection = new DatabaseConnection();
 module.exports = {
   connectDB: () => dbConnection.connect(),
   getDB: () => dbConnection.getDB(),
+  getClient: () => dbConnection.getClient(),
   closeDB: () => dbConnection.close(),
+  startSession: () => dbConnection.startSession(),
 };

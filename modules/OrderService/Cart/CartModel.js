@@ -29,6 +29,7 @@ const CartModel = {
       return cart || { customer_id, items: [] };
     });
   },
+
   getCartItemByProductId: async (customer_id, product_id) => {
     return handleDBOperation(async (collection) => {
       const cart = await collection.findOne(
@@ -47,6 +48,7 @@ const CartModel = {
       return null;
     });
   },
+
   addItem: async (customer_id, cartData) => {
     return handleDBOperation(async (collection) => {
       const { error } = CART_ITEM_SCHEMA.validate(cartData);
@@ -61,16 +63,20 @@ const CartModel = {
       );
     });
   },
+
   removeItem: async (customer_id, product_id) => {
     return handleDBOperation(async (collection) => {
-      await collection.updateOne(
+      const result = await collection.updateOne(
         { customer_id: new ObjectId(customer_id) },
         {
           $pull: { items: { product_id: new ObjectId(product_id) } },
         }
       );
+
+      return { message: "Item removed from cart successfully" };
     });
   },
+
   updateQuantity: async (customer_id, product_id, quantity) => {
     return handleDBOperation(async (collection) => {
       await collection.updateOne(
@@ -84,6 +90,7 @@ const CartModel = {
       );
     });
   },
+
   updateSku: async (customer_id, product_id, sku) => {
     return handleDBOperation(async (collection) => {
       console.log(customer_id);
@@ -100,6 +107,7 @@ const CartModel = {
       );
     });
   },
+  
   clearCart: async (customer_id) => {
     return handleDBOperation(async (collection) => {
       await collection.updateOne(

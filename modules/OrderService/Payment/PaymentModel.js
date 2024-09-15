@@ -5,7 +5,6 @@ const { ObjectId } = require("mongodb");
 const COLLECTION_NAME = "payments";
 const COLLECTION_SCHEMA = Joi.object({
   order_id: Joi.string().required(),
-  type: Joi.string().required(),
   method: Joi.string().valid("prepaid", "postpaid").required(),
   status: Joi.string().valid("pending", "completed", "failed").required(),
   created_at: Joi.date().default(Date.now),
@@ -27,32 +26,27 @@ const handleDBOperation = async (operation) => {
   }
 };
 
-const InvoiceModel = {
+const PaymentModel = {
   // when customer create order
-  createPayment: async (paymentData) => {
+  createPayment: async (paymentData, session) => {
     return handleDBOperation(async (collection) => {
-      await collection.insertOne(paymentData);
-      return { message: "Create payment successful" };
-    });
-  },
+      console.log(paymentData);
+      const payment = {
+        order_id: new ObjectId(paymentData.order_id),
+        customer_id: new ObjectId(paymentData.customer_id),
+        seller_id: new ObjectId(paymentData.seller_id),
+        method: paymentData.method || "prepaid",
+        status: paymentData.status || "pending",
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
 
-  // when seller accepted order and create invoice
-  createInvoice: async (invoice_id, order_id) => {
-    return handleDBOperation(async (collection) => {
-      await collection.updateOne(
-        { order_id: order_id },
-        {
-          $set: { invoice_id },
-        }
-      );
-      return collection.findOne({ invoice_id });
-    });
-  },
+      const result = await collection.insertOne(payment, { session });
 
-  // when seller refuse order and delete payment data
-  refuseOrder: async (order_id) => {
-    return handleDBOperation(async (collection) => {
-      await collection.deleteOne({ order_id: order_id });
+      return {
+        message: "Payment created successfully",
+        payment_id: result.insertedId.toString(),
+      };
     });
   },
 
@@ -62,7 +56,8 @@ const InvoiceModel = {
     });
   },
 
-  updatePaymentStatus: async (payment_id, newStatus) => {
+  // when seller accepted order or refused order
+  updateStatus: async (payment_id, newStatus) => {
     return handleDBOperation(async (collection) => {
       const result = await collection.updateOne(
         { _id: new ObjectId(payment_id) },
@@ -76,4 +71,4 @@ const InvoiceModel = {
   },
 };
 
-module.exports = InvoiceModel;
+module.exports = PaymentModel;

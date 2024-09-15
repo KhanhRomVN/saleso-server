@@ -9,12 +9,18 @@ const routes = [
     path: "/",
     middleware: [authCustomerToken],
     handler: SessionController.createSessionData,
-  },
-  {
+    },
+    {
     method: "get",
     path: "/get/:session_id",
     middleware: [authCustomerToken],
     handler: SessionController.getSessionData,
+  },
+  {
+    method: "get",
+    path: "/clean/:session_id",
+    middleware: [authCustomerToken],
+    handler: SessionController.cleanSession,
   },
 ];
 

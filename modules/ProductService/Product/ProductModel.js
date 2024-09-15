@@ -245,57 +245,33 @@ const ProductModel = {
       // await redisClient.del(cacheKey);
     }),
 
-  updateStock: async (product_id, quantity, sku) =>
-    handleDBOperation(async (collection) => {
-      if (!ObjectId.isValid(product_id)) {
-        throw new Error("Invalid product ID");
-      }
-
-      const result = await collection.updateOne(
-        {
-          _id: new ObjectId(product_id),
-          "variants.sku": sku,
-        },
-        {
-          $inc: { "variants.$.stock": quantity },
-          $set: { updated_at: new Date() },
+    updateStock: async (product_id, quantity, sku) =>
+      handleDBOperation(async (collection) => {
+        if (!ObjectId.isValid(product_id)) {
+          throw new Error("Invalid product ID");
         }
-      );
-
-      if (result.matchedCount === 0) {
-        throw new Error("Product or SKU not found");
-      }
-
-      // Update Elasticsearch
-      await client.update({
-        index: "products",
-        id: product_id,
-        body: {
-          script: {
-            source: `
-              for (int i = 0; i < ctx._source.variants.length; i++) {
-                if (ctx._source.variants[i].sku == params.sku) {
-                  ctx._source.variants[i].stock += params.quantity;
-                  break;
-                }
-              }
-              ctx._source.updated_at = params.updated_at;
-            `,
-            lang: "painless",
-            params: { sku, quantity, updated_at: new Date() },
+  
+        const result = await collection.updateOne(
+          {
+            _id: new ObjectId(product_id),
+            "variants.sku": sku,
+            "variants.stock": { $gte: -quantity } 
           },
-        },
-      });
-
-      // Invalidate Redis cache
-      const cacheKey = `product:${product_id}`;
-      await redisClient.del(cacheKey);
-
-      return {
-        message: "Stock updated successfully",
-        modifiedCount: result.modifiedCount,
-      };
-    }),
+          {
+            $inc: { "variants.$.stock": quantity },
+            $set: { updated_at: new Date() },
+          }
+        );
+  
+        if (result.matchedCount === 0) {
+          throw new Error("Product not found or insufficient stock");
+        }
+  
+        return {
+          message: "Stock updated successfully",
+          modifiedCount: result.modifiedCount,
+        };
+      }),
 
   updateProduct: async (product_id, keys, values) =>
     handleDBOperation(async (collection) => {
