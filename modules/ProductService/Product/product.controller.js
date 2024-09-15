@@ -333,15 +333,12 @@ const ProductController = {
     handleRequest(req, res, async (req) => {
       const {
         value,
-        countryOfOrigin,
-        brand,
-        priceMin,
-        priceMax,
+        sku,
+        group,
         rating,
+        address,
         page = 1,
-        limit = 12,
-        sortBy = "relevance",
-        sortOrder = "desc",
+        limit = 32,
       } = req.body;
 
       const query = {
@@ -356,94 +353,139 @@ const ProductController = {
         query.bool.should.push({
           multi_match: {
             query: value,
-            fields: ["name^2", "description", "tags"],
+            fields: [
+              "name^2",
+              "slug",
+              "details.detail_info",
+              "origin",
+              "categories.category_name",
+              "tags",
+            ],
+            type: "best_fields",
             fuzziness: "AUTO",
-            operator: "and",
+            operator: "or",
           },
         });
         query.bool.minimum_should_match = 1;
       }
 
-      if (countryOfOrigin) {
-        query.bool.filter.push({
-          term: { countryOfOrigin: countryOfOrigin.toLowerCase() },
-        });
-      }
+      if (sku || group) {
+        const variantQuery = {
+          nested: {
+            path: "variants",
+            query: {
+              bool: {
+                must: [],
+              },
+            },
+          },
+        };
 
-      if (brand) {
-        query.bool.filter.push({ term: { brand: brand.toLowerCase() } });
-      }
+        if (sku) {
+          variantQuery.nested.query.bool.must.push({
+            match: { "variants.sku": sku },
+          });
+        }
 
-      if (priceMin !== undefined || priceMax !== undefined) {
-        const priceRange = {};
-        if (priceMin !== undefined) priceRange.gte = parseFloat(priceMin);
-        if (priceMax !== undefined) priceRange.lte = parseFloat(priceMax);
-        query.bool.filter.push({ range: { price: priceRange } });
+        if (group) {
+          variantQuery.nested.query.bool.must.push({
+            prefix: { "variants.sku": group },
+          });
+        }
+
+        query.bool.must.push(variantQuery);
       }
 
       if (rating) {
-        const ratingRange = {
-          gte: parseFloat(rating) - 0.5,
-          lt: parseFloat(rating) + 0.5,
-        };
-        query.bool.filter.push({ range: { rating: ratingRange } });
+        query.bool.filter.push({
+          range: {
+            rating: {
+              gte: parseFloat(rating),
+            },
+          },
+        });
       }
 
-      const sortOptions = {
-        relevance: "_score",
-        price: "price",
-        rating: "rating",
-        date: "createdAt",
-      };
-
-      const sort = [
-        { [sortOptions[sortBy] || "_score"]: { order: sortOrder } },
-      ];
+      if (address) {
+        query.bool.should.push({
+          match: {
+            address: {
+              query: address,
+              fuzziness: "AUTO",
+            },
+          },
+        });
+      }
 
       const result = await client.search({
         index: "products",
         body: {
           query,
-          sort,
           from: (page - 1) * limit,
           size: limit,
           _source: [
-            "id",
+            "product_id",
             "name",
             "images",
-            "attributes",
+            "variants",
             "seller_id",
-            "price",
             "rating",
-            "createdAt",
+            "address",
+            "origin",
+            "categories",
           ],
         },
       });
 
       const products = result.hits.hits.map((hit) => {
         const { _id, _source } = hit;
-        const { name, images, attributes, seller_id, price, rating } = _source;
+        const {
+          name,
+          images,
+          variants,
+          seller_id,
+          rating,
+          address,
+          origin,
+          categories,
+        } = _source;
 
         return {
           id: _id,
           name,
           image: images && images.length > 0 ? images[0] : null,
           price:
-            attributes && attributes.length > 0
-              ? Math.min(
-                  ...attributes.map((attr) => parseFloat(attr.attributes_price))
-                )
-              : parseFloat(price),
+            variants && variants.length > 0
+              ? Math.min(...variants.map((v) => v.price))
+              : null,
           rating: parseFloat(rating),
           seller_id,
+          address,
+          origin,
+          categories: categories.map((c) => ({
+            category_id: c.category_id,
+            category_name: c.category_name,
+          })),
         };
       });
+
+      const simplifiedProducts = products.map(
+        ({ id, name, image, price, rating, seller_id, categories }) => ({
+          id,
+          name,
+          image,
+          price,
+          rating,
+          seller_id,
+          categories,
+        })
+      );
 
       return {
         total: result.hits.total.value,
         page: parseInt(page),
         limit: parseInt(limit),
-        products,
+        products: simplifiedProducts,
       };
     }),
 

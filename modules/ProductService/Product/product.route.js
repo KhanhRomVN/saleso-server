@@ -8,7 +8,7 @@ const routes = [
     method: "post",
     path: "/",
     middleware: [authSellerToken],
-    handler: ProductController.createProduct,
+    handler: ProductController.createProduct, 
   },
   {
     method: "get",
@@ -43,7 +43,7 @@ const routes = [
   },
   // Search products by name and tag
   {
-    method: "post",
+    method: "post", 
     path: "/elastic/search",
     handler: ProductController.searchProduct,
   },
@@ -52,11 +52,6 @@ const routes = [
     method: "post",
     path: "/elastic/filter",
     handler: ProductController.filterProducts,
-  },
-  {
-    method: "post",
-    path: "/elastic/category/filter",
-    handler: ProductController.categoryFilterProducts,
   },
   {
     method: "put",

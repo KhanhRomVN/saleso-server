@@ -12,37 +12,34 @@ const routes = [
     method: "post",
     path: "/",
     middleware: [authCustomerToken],
-    handler: FeedbackController.createFeedback,
+    handler: FeedbackController.create,
   },
-  // This function is only used when the seller is the owner of this product
   {
     method: "post",
-    path: "/reply/:feedback_id",
+    path: "/reply/:feedbackId",
     middleware: [authSellerToken],
-    handler: FeedbackController.replyFeedback,
+    handler: FeedbackController.reply,
   },
   {
     method: "delete",
-    path: "/:feedback_id",
+    path: "/:feedbackId",
     middleware: [authCustomerToken],
-    handler: FeedbackController.deleteFeedback,
-  },
-  // This function is used to display the customer-side product feedback list (no authentication required).
-  {
-    method: "post",
-    path: "/product-feedbacks",
-    handler: FeedbackController.getProductFeedbacks,
-  },
-  // This function is used to display a list of feedback filtered through criteria such as owner_id, user_id, product_id and rating (only used for authenticated sellers).
-  {
-    method: "post",
-    path: "/seller/filtered-feedbacks",
-    middleware: [authSellerToken],
-    handler: FeedbackController.getFilteredFeedbacks,
+    handler: FeedbackController.delete,
   },
   {
     method: "get",
-    path: "/products/:product_id/rating",
+    path: "/product/:productId",
+    handler: FeedbackController.getByProduct,
+  },
+  {
+    method: "get",
+    path: "/seller",
+    middleware: [authSellerToken],
+    handler: FeedbackController.getFiltered,
+  },
+  {
+    method: "get",
+    path: "/product/:productId/rating",
     handler: FeedbackController.getProductRating,
   },
 ];

@@ -10,15 +10,15 @@ const handleRequest = async (req, res, operation) => {
     res
       .status(error.status || 500)
       .json({ error: error.message || "Internal Server Error" });
-  }
+  } 
 };
 
 const FeedbackController = {
-  createFeedback: (req, res) =>
+  create: (req, res) =>
     handleRequest(req, res, async (req) => {
       const { product_id, rating, comment, images = [] } = req.body;
       const user_id = req.user._id.toString();
-      const product = await ProductModel.getProductByProdId(product_id);
+      const product = await ProductModel.getById(product_id);
       const is_owner = user_id === product.seller_id;
 
       const feedbackData = {
@@ -33,20 +33,18 @@ const FeedbackController = {
         updatedAt: new Date(),
       };
 
-      await FeedbackModel.createFeedback(feedbackData);
+      await FeedbackModel.create(feedbackData);
       return { message: "Feedback created successfully" };
     }),
 
-  replyFeedback: (req, res) =>
+  reply: (req, res) =>
     handleRequest(req, res, async (req) => {
-      const { feedback_id } = req.params;
+      const { feedbackId } = req.params;
       const { comment } = req.body;
       const user_id = req.user._id.toString();
-      const feedback = await FeedbackModel.getFeedbackById(feedback_id);
+      const feedback = await FeedbackModel.getById(feedbackId);
       if (user_id !== feedback.owner_id) {
-        return {
-          error: "You do not have permission to respond to this comment",
-        };
+        throw new Error("Unauthorized to reply to this feedback");
       }
 
       const replyData = {
@@ -55,75 +53,67 @@ const FeedbackController = {
         updatedAt: new Date(),
       };
 
-      await FeedbackModel.replyFeedback(feedback_id, replyData);
+      await FeedbackModel.reply(feedbackId, replyData);
       return { message: "Feedback replied successfully" };
     }),
 
-  deleteFeedback: (req, res) =>
+  delete: (req, res) =>
     handleRequest(req, res, async (req) => {
-      const { feedback_id } = req.params;
+      const { feedbackId } = req.params;
       const user_id = req.user._id.toString();
 
-      const feedback = await FeedbackModel.getFeedbackById(feedback_id);
+      const feedback = await FeedbackModel.getById(feedbackId);
       if (!feedback) {
         throw new Error("Feedback not found");
       }
 
-      if (feedback.user_id !== user_id || feedback.owner_id !== user_id) {
+      if (feedback.user_id !== user_id && feedback.owner_id !== user_id) {
         throw new Error("Unauthorized to delete this feedback");
       }
 
-      await FeedbackModel.deleteFeedback(feedback_id);
+      await FeedbackModel.delete(feedbackId);
       return { message: "Feedback deleted successfully" };
     }),
 
-  getProductFeedbacks: (req, res) =>
+  getByProduct: (req, res) =>
     handleRequest(req, res, async (req) => {
-      const { product_id, start = 1, end = 10 } = req.body;
-      const feedbacks = await FeedbackModel.getProductFeedbacks(
-        product_id,
-        start,
-        end
-      );
+      const { productId } = req.params;
+      const { page = 1, limit = 10 } = req.query;
+      const skip = (page - 1) * limit;
+      const feedbacks = await FeedbackModel.getByProduct(productId, skip, limit);
 
       const feedbacksWithUserData = await Promise.all(
         feedbacks.map(async (feedback) => {
-          const user = await UserModel.getUserById(
-            feedback.user_id,
-            "customer"
-          );
-          return {
-            ...feedback,
-            username: user.username,
-          };
+          const user = await UserModel.getById(feedback.user_id, "customer");
+          return { ...feedback, username: user.username };
         })
       );
 
       return feedbacksWithUserData;
     }),
 
-  getFilteredFeedbacks: async (req, res) =>
+  getFiltered: async (req, res) =>
     handleRequest(req, res, async (req) => {
-      const { product_id, user_id, rating, start = 1, end = 10 } = req.body;
+      const { product_id, user_id, rating, page = 1, limit = 10 } = req.query;
       const owner_id = req.user._id.toString();
+      const skip = (page - 1) * limit;
 
       const params = {
         owner_id,
-        start: parseInt(start),
-        end: parseInt(end),
+        product_id,
+        user_id,
+        rating: rating ? parseInt(rating) : undefined,
+        skip,
+        limit: parseInt(limit),
       };
 
-      if (product_id) params.product_id = product_id;
-      if (user_id) params.user_id = user_id;
-      if (rating) params.rating = parseInt(rating);
-
-      const feedbackList = await FeedbackModel.getFilteredFeedbacks(params);
+      const feedbackList = await FeedbackModel.getFiltered(params);
 
       const enrichedFeedbackList = await Promise.all(
         feedbackList.map(async (feedback) => {
           const [user, product] = await Promise.all([
-            UserModel.getUserById(feedback.user_id, "customer"),
-            ProductModel.getProductByProdId(feedback.product_id),
+            UserModel.getById(feedback.user_id, "customer"),
+            ProductModel.getById(feedback.product_id),
           ]);
 
           return {
@@ -140,9 +130,8 @@ const FeedbackController = {
 
   getProductRating: (req, res) =>
     handleRequest(req, res, async (req) => {
-      const { product_id } = req.params;
-      const rating = await FeedbackModel.getAverageRatingForProduct(product_id);
-      return rating;
+      const { productId } = req.params;
+      return await FeedbackModel.getAverageRatingForProduct(productId);
     }),
 };
 

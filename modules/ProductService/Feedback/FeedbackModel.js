@@ -10,7 +10,7 @@ const COLLECTION_SCHEMA = Joi.object({
   owner_id: Joi.string().required(),
   rating: Joi.number().min(1).max(5).required(),
   comment: Joi.string().required(),
-  images: Joi.array().items(Joi.string()),
+  images: Joi.array().items(Joi.string()),  
   reply: Joi.object({
     comment: Joi.string().required(),
     createdAt: Joi.date().default(Date.now),
@@ -31,7 +31,7 @@ const handleDBOperation = async (operation) => {
 };
 
 const FeedbackModel = {
-  createFeedback: async (feedbackData) =>
+  create: async (feedbackData) =>
     handleDBOperation(async (collection) => {
       const { error } = COLLECTION_SCHEMA.validate(feedbackData);
       if (error) throw new Error(error.details[0].message);
@@ -39,51 +39,43 @@ const FeedbackModel = {
       return result.insertedId;
     }),
 
-  replyFeedback: async (feedback_id, replyData) =>
+  reply: async (feedbackId, replyData) =>
     handleDBOperation(async (collection) => {
       await collection.updateOne(
-        { _id: new ObjectId(feedback_id) },
+        { _id: new ObjectId(feedbackId) },
         { $set: { reply: replyData } }
       );
     }),
 
-  deleteFeedback: async (feedback_id) =>
+  delete: async (feedbackId) =>
     handleDBOperation(async (collection) => {
-      await collection.deleteOne({ _id: new ObjectId(feedback_id) });
+      await collection.deleteOne({ _id: new ObjectId(feedbackId) });
     }),
 
-  getFeedbackById: async (feedback_id) =>
+  getById: async (feedbackId) =>
     handleDBOperation(async (collection) => {
-      return await collection.findOne({ _id: new ObjectId(feedback_id) });
+      return await collection.findOne({ _id: new ObjectId(feedbackId) });
     }),
 
-  getProductFeedbacks: async (productId, start, end) =>
+  getByProduct: async (productId, skip, limit) =>
     handleDBOperation(async (collection) => {
-      const feedbacks = await collection
+      return await collection
         .find({ product_id: productId })
         .sort({ createdAt: -1 })
-        .skip(start - 1)
-        .limit(end - start + 1)
+        .skip(skip)
+        .limit(limit)
         .toArray();
-      return feedbacks;
     }),
 
-  getFilteredFeedbacks: async (params) =>
+  getFiltered: async ({ owner_id, product_id, user_id, rating, skip, limit }) =>
     handleDBOperation(async (collection) => {
-      const { owner_id, product_id, user_id, rating, start, end } = params;
-
-      const filters = { owner_id };
-      if (product_id) filters.product_id = product_id;
-      if (user_id) filters.user_id = user_id;
-      if (rating) filters.rating = rating;
-
-      const feedbacks = await collection
+      const filters = { owner_id, ...(product_id && { product_id }), ...(user_id && { user_id }), ...(rating && { rating }) };
+      return await collection
         .find(filters)
         .sort({ createdAt: -1 })
-        .skip(start - 1)
-        .limit(end - start + 1)
+        .skip(skip)
+        .limit(limit)
         .toArray();
-      return feedbacks;
     }),
 
   getAverageRatingForProduct: async (product_id) =>

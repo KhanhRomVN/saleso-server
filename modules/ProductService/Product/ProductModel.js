@@ -5,7 +5,7 @@ const DiscountModel = require("../../../modules/ProductService/Discount/Discount
 const cron = require("node-cron");
 const { client } = require("../../../config/elasticsearchClient");
 const { redisClient } = require("../../../config/redisClient");
-const { remove } = require("winston");
+const FeedbackModel = require("../Feedback/FeedbackModel");
 const REDIS_EXPIRE_TIME = 3600;
 
 const COLLECTION_NAME = "products";
@@ -228,50 +228,22 @@ const ProductModel = {
         { $set: { is_active: newActiveStatus, updated_at: new Date() } }
       );
 
-      // // Update Elasticsearch
-      // await client.update({
-      //   index: "products",
-      //   id: product_id,
-      //   body: {
-      //     doc: {
-      //       is_active: newActiveStatus,
-      //       updated_at: new Date(),
-      //     },
-      //   },
-      // });
-
-      // // Invalidate Redis cache
-      // const cacheKey = `product:${product_id}`;
-      // await redisClient.del(cacheKey);
-    }),
-
-    updateStock: async (product_id, quantity, sku) =>
-      handleDBOperation(async (collection) => {
-        if (!ObjectId.isValid(product_id)) {
-          throw new Error("Invalid product ID");
-        }
-  
-        const result = await collection.updateOne(
-          {
-            _id: new ObjectId(product_id),
-            "variants.sku": sku,
-            "variants.stock": { $gte: -quantity } 
+      // Update Elasticsearch
+      await client.update({
+        index: "products",
+        id: product_id,
+        body: {
+          doc: {
+            is_active: newActiveStatus,
+            updated_at: new Date(),
           },
-          {
-            $inc: { "variants.$.stock": quantity },
-            $set: { updated_at: new Date() },
-          }
-        );
-  
-        if (result.matchedCount === 0) {
-          throw new Error("Product not found or insufficient stock");
-        }
-  
-        return {
-          message: "Stock updated successfully",
-          modifiedCount: result.modifiedCount,
-        };
-      }),
+        },
+      });
+
+      // Invalidate Redis cache
+      const cacheKey = `product:${product_id}`;
+      await redisClient.del(cacheKey);
+    }),
 
   updateProduct: async (product_id, keys, values) =>
     handleDBOperation(async (collection) => {
@@ -334,15 +306,9 @@ const ProductModel = {
         id: product_id,
       });
 
-      if (result.deletedCount > 0) {
-        const cacheKey = `product:${product_id}`;
-        await redisClient.del(cacheKey);
-        // Invalidate the getAllProduct cache
-        const allProductsKeys = await redisClient.keys("allProducts:*");
-        if (allProductsKeys.length > 0) {
-          await redisClient.del(allProductsKeys);
-        }
-      }
+      // Invalidate Redis cache
+      const cacheKey = `product:${product_id}`;
+      await redisClient.del(cacheKey);
 
       return result;
     }),
@@ -425,137 +391,23 @@ const ProductModel = {
 
         if (updated) {
           await collection.updateOne({ _id: product._id }, updateOps);
+          
+          // Update Elasticsearch
+          await client.update({
+            index: "products",
+            id: product._id.toString(),
+            body: {
+              doc: updateOps,
+            },
+          });
+
+          // Invalidate Redis cache
+          const cacheKey = `product:${product._id}`;
+          await redisClient.del(cacheKey);
         }
       }
     });
   },
-
-  applyDiscount: async (product_id, discount_id, status) =>
-    handleDBOperation(async (collection) => {
-      let updateField;
-      switch (status) {
-        case "upcoming":
-          updateField = "upcoming_discounts";
-          break;
-        case "ongoing":
-          updateField = "ongoing_discounts";
-          break;
-        case "expired":
-          updateField = "expired_discounts";
-          break;
-        default:
-          throw new Error("Invalid discount status");
-      }
-
-      const result = await collection.updateOne(
-        { _id: new ObjectId(product_id) },
-        {
-          $addToSet: { [updateField]: discount_id },
-          $set: { updated_at: new Date() },
-        }
-      );
-
-      if (result.matchedCount === 0) {
-        throw new Error("Product not found");
-      }
-
-      if (result.modifiedCount === 0) {
-        console.log(`Discount was already in the ${updateField} array`);
-      }
-
-      // Update Elasticsearch (uncomment when ready to use)
-      // await client.update({
-      //   index: "products",
-      //   id: product_id,
-      //   body: {
-      //     script: {
-      //       source: `
-      //         if (!ctx._source.containsKey(params.updateField)) {
-      //           ctx._source[params.updateField] = [];
-      //         }
-      //         if (!ctx._source[params.updateField].contains(params.discount_id)) {
-      //           ctx._source[params.updateField].add(params.discount_id);
-      //         }
-      //         ctx._source.updated_at = params.updated_at;
-      //       `,
-      //       lang: "painless",
-      //       params: {
-      //         updateField,
-      //         discount_id,
-      //         updated_at: new Date().toISOString(),
-      //       },
-      //     },
-      //   },
-      // });
-
-      // Invalidate Redis cache
-      const cacheKey = `product:${product_id}`;
-      await redisClient.del(cacheKey);
-
-      return result;
-    }),
-
-  removeDiscount: async (product_id, discount_id, status) =>
-    handleDBOperation(async (collection) => {
-      let updateField;
-      switch (status) {
-        case "upcoming":
-          updateField = "upcoming_discounts";
-          break;
-        case "ongoing":
-          updateField = "ongoing_discounts";
-          break;
-        case "expired":
-          updateField = "expired_discounts";
-          break;
-        default:
-          throw new Error("Invalid discount status");
-      }
-
-      const result = await collection.updateOne(
-        { _id: new ObjectId(product_id) },
-        {
-          $pull: { [updateField]: discount_id },
-          $set: { updated_at: new Date() },
-        }
-      );
-
-      if (result.matchedCount === 0) {
-        throw new Error("Product not found");
-      }
-
-      if (result.modifiedCount === 0) {
-        console.log(`Discount was not in the ${updateField} array`);
-      }
-
-      // Update Elasticsearch (uncomment when ready to use)
-      // await client.update({
-      //   index: "products",
-      //   id: product_id,
-      //   body: {
-      //     script: {
-      //       source: `
-      //         if (ctx._source.containsKey(params.updateField)) {
-      //           ctx._source[params.updateField].removeIf(id -> id == params.discount_id);
-      //         }
-      //         ctx._source.updated_at = params.updated_at;
-      //       `,
-      //       lang: "painless",
-      //       params: {
-      //         updateField,
-      //         discount_id,
-      //         updated_at: new Date().toISOString(),
-      //       },
-      //     },
-      //   },
-      // });
-
-      // Invalidate Redis cache
-      const cacheKey = `product:${product_id}`;
-      await redisClient.del(cacheKey);
-
-      return result;
-    }),
 
   refreshProduct: async () =>
     handleDBOperation(async (collection) => {
@@ -571,38 +423,36 @@ const ProductModel = {
 
       // Fetch all products from MongoDB
       const products = await collection.find({}).toArray();
-      const productsWithId = products.map((product) => ({
-        ...product,
-        product_id: product._id.toString(),
+      const productsWithIdAndRating = await Promise.all(products.map(async (product) => {
+        const ratingData = await FeedbackModel.getAverageRatingForProduct(product._id);
+        return {
+          ...product,
+          product_id: product._id.toString(),
+          rating: ratingData.averageRating
+        };
       }));
 
       // Bulk index all products in Elasticsearch
-      const body = productsWithId.flatMap((doc) => [
-        { index: { _index: "products", _id: doc._id.toString() } },
-        {
-          ...doc,
-          _id: undefined,
-        },
-      ]);
+      const body = productsWithIdAndRating.flatMap((doc) => {
+        const {
+          created_at,
+          updated_at,
+          upcoming_discounts,
+          ongoing_discounts,
+          expired_discounts,
+          description,
+          ...essentialData
+        } = doc;
+        return [
+          { index: { _index: "products", _id: doc._id.toString() } },
+          {
+            ...essentialData,
+            _id: undefined,
+          },
+        ];
+      });
 
       const bulkResponse = await client.bulk({ refresh: true, body });
-      // const { body: bulkResponse } = await client.bulk({ refresh: true, body });
-
-      if (bulkResponse.errors) {
-        const erroredDocuments = [];
-        bulkResponse.items.forEach((action, i) => {
-          const operation = Object.keys(action)[0];
-          if (action[operation].error) {
-            erroredDocuments.push({
-              status: action[operation].status,
-              error: action[operation].error,
-              operation: body[i * 2],
-              document: body[i * 2 + 1],
-            });
-          }
-        });
-        console.error("Failed to index some documents", erroredDocuments);
-      }
 
       // Refresh Redis cache
       const redisKeys = await redisClient.keys("product:*");
@@ -618,12 +468,6 @@ const ProductModel = {
         });
       }
 
-      // Invalidate and refresh the getAllProduct cache
-      const allProductsKeys = await redisClient.keys("allProducts:*");
-      if (allProductsKeys.length > 0) {
-        await redisClient.del(allProductsKeys);
-      }
-
       return {
         message: "Products data refreshed in Elasticsearch and Redis cache",
       };
@@ -635,7 +479,7 @@ cron.schedule("* * * * *", async () => {
     await DiscountModel.updateDiscountStatuses();
     await ProductModel.updateDiscountStatuses();
   } catch (error) {
-    console.error("Error updating discount statuses:", error);
+    console.error("Error updating discount stauses:", error);
   }
 });
 
