@@ -26,6 +26,12 @@ const VariantController = {
       return await VariantModel.bulkCreateVariants(variantsData);
     }),
 
+  getVariantBySku: (req, res) =>
+    handleRequest(req, res, async (req) => {
+      const { sku } = req.params;
+      return await VariantModel.getVariantBySku(sku);
+    }),
+
   getVariantByCategory: (req, res) =>
     handleRequest(req, res, async (req) => {
       const { category_id } = req.params;

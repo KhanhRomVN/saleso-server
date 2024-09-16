@@ -15,6 +15,11 @@ const routes = [
   },
   {
     method: "get",
+    path: "/sku/:sku",
+    handler: VariantController.getVariantBySku,
+  },
+  {
+    method: "get",
     path: "/category/:category_id",
     handler: VariantController.getVariantByCategory,
   },

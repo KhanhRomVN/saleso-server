@@ -3,9 +3,10 @@ const {
   ProductModel,
   PaymentModel,
   CartModel,
+  VariantModel,
 } = require("../../../models");
 const logger = require("../../../config/logger");
-const { getDB, startSession } = require("../../../config/mongoDB");
+const { startSession } = require("../../../config/mongoDB");
 
 const handleRequest = async (req, res, operation) => {
   try {
@@ -39,12 +40,20 @@ const OrderController = {
           // 1. Process orders and update stock
           const processedOrders = await Promise.all(
             orderItems.map(async (item) => {
-              const product = await ProductModel.getProductById(item.product_id, session);
+              const product = await ProductModel.getProductById(
+                item.product_id,
+                session
+              );
               if (!product) {
                 throw new Error(`Product not found: ${item.product_id}`);
               }
 
-              await ProductModel.updateStock(item.product_id, -item.quantity, item.sku, session);
+              await ProductModel.updateStock(
+                item.product_id,
+                -item.quantity,
+                item.sku,
+                session
+              );
 
               return {
                 ...item,
@@ -56,7 +65,11 @@ const OrderController = {
           );
 
           // 2. Create orders
-          createdOrderIds = await OrderModel.createOrders(processedOrders, customer_id, session);
+          createdOrderIds = await OrderModel.createOrders(
+            processedOrders,
+            customer_id,
+            session
+          );
 
           // 3. Create payments
           await Promise.all(
@@ -79,15 +92,19 @@ const OrderController = {
             })
           );
 
-          logger.info(`Orders created successfully for customer ${customer_id}`);
+          logger.info(
+            `Orders created successfully for customer ${customer_id}`
+          );
         });
 
-        return { 
-          message: "Order created successfully", 
-          orderIds: createdOrderIds.map(order => order.order_id) 
+        return {
+          message: "Order created successfully",
+          orderIds: createdOrderIds.map((order) => order.order_id),
         };
       } catch (error) {
-        logger.error(`Error creating order for customer ${customer_id}: ${error.message}`);
+        logger.error(
+          `Error creating order for customer ${customer_id}: ${error.message}`
+        );
         throw error;
       } finally {
         await session.endSession();
@@ -97,33 +114,32 @@ const OrderController = {
   getListOrder: (req, res) =>
     handleRequest(req, res, async (req) => {
       const { status } = req.params;
-      const id = req.user._id.toString();
+      const user_id = req.user._id.toString();
       const role = req.user.role;
+      const orders = await OrderModel.getListOrder(user_id, role, status);
 
-      let orders = await OrderModel.getListOrder(id, role, status);
+      const processedOrders = await Promise.all(
+        orders.map(async (order) => {
+          // Step 1: Remove unnecessary keys
+          const { applied_discount, updated_at, ...cleanedOrder } = order;
 
-      const orderPromises = orders.map(async (order) => {
-        if (order.product_id) {
-          const product = await ProductModel.getProductByProdId(
-            order.product_id
-          );
+          // Step 2: Get variant name
+          const variant = await VariantModel.getVariantBySku(order.sku);
+          cleanedOrder.sku_name = variant ? variant.variant : null;
+
+          // Step 3: Get product name and image
+          const product = await ProductModel.getProductById(order.product_id);
           if (product) {
-            return {
-              ...order,
-              product_name: product.name,
-              product_image:
-                product.images && product.images.length > 0
-                  ? product.images[0]
-                  : null,
-            };
+            cleanedOrder.product_name = product.name;
+            cleanedOrder.product_image = product.images[0] || null;
+            cleanedOrder.product_address = product.address;
           }
-        }
-        return order;
-      });
 
-      orders = await Promise.all(orderPromises);
+          return cleanedOrder;
+        })
+      );
 
-      return orders;
+      return processedOrders;
     }),
 
   getOrder: (req, res) =>
@@ -143,6 +159,10 @@ const OrderController = {
       await OrderModel.cancelOrder(order_id, customer_id);
       return { message: "Order cancel successfully" };
     }),
+
+  acceptOrder: (req, res) => handleRequest(req, res, async (req) => {}),
+
+  refuseOrder: (req, res) => handleRequest(req, res, async (req) => {}),
 };
 
 module.exports = OrderController;

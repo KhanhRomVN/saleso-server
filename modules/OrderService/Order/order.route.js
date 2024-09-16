@@ -3,8 +3,9 @@ const { OrderController } = require("../../../controllers");
 const {
   authCustomerToken,
   authToken,
+  authSellerToken,
 } = require("../../../middleware/authToken");
-const { rateLimiter } = require('../../../middleware/rateLimiter');
+const { rateLimiter } = require("../../../middleware/rateLimiter");
 const router = express.Router();
 
 const routes = [
@@ -12,18 +13,18 @@ const routes = [
     method: "post",
     path: "/",
     middleware: [authCustomerToken, rateLimiter],
-    handler: OrderController.createOrder, 
+    handler: OrderController.createOrder,
   },
   {
     method: "get",
     path: "/:status",
     middleware: [authToken, rateLimiter],
-    handler: OrderController.getListOrder,  
+    handler: OrderController.getListOrder,
   },
   {
     method: "get",
     path: "/get/:order_id",
-    middleware: [authToken, rateLimiter],
+    middleware: [authSellerToken, rateLimiter],
     handler: OrderController.getOrder,
   },
   {
@@ -31,6 +32,18 @@ const routes = [
     path: "/cancel/:order_id",
     middleware: [authCustomerToken, rateLimiter],
     handler: OrderController.cancelOrder,
+  },
+  {
+    method: "put",
+    path: "/accept/:order_id",
+    middleware: [authSellerToken, rateLimiter],
+    handler: OrderController.acceptOrder,
+  },
+  {
+    method: "put",
+    path: "/refuse/:order_id",
+    middleware: [authSellerToken, rateLimiter],
+    handler: OrderController.refuseOrder,
   },
 ];
 

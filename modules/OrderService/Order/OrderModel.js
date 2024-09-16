@@ -2,11 +2,11 @@ const { getDB } = require("../../../config/mongoDB");
 const Joi = require("joi");
 const { ObjectId } = require("mongodb");
 
-const COLLECTION_NAME = "orders"; 
-const COLLECTION_SCHEMA = Joi.object({  
+const COLLECTION_NAME = "orders";
+const COLLECTION_SCHEMA = Joi.object({
   product_id: Joi.string().required(),
   seller_id: Joi.string().required(),
-  customer_id: Joi.string().required(), 
+  customer_id: Joi.string().required(),
   sku: Joi.string().required(),
   quantity: Joi.number().integer().min(1).required(),
   shipping_fee: Joi.number().min(0).required(),
@@ -31,27 +31,27 @@ const handleDBOperation = async (operation) => {
 const OrderModel = {
   createOrders: async (orderItems, customer_id) => {
     return handleDBOperation(async (collection) => {
-      const orders = orderItems.map(item => ({
+      const orders = orderItems.map((item) => ({
         ...item,
         customer_id,
         order_status: "pending",
         created_at: new Date(),
-        updated_at: new Date()
+        updated_at: new Date(),
       }));
 
       const result = await collection.insertMany(orders);
 
-      return Object.keys(result.insertedIds).map(key => ({
+      return Object.keys(result.insertedIds).map((key) => ({
         seller_id: orders[key].seller_id,
-        order_id: result.insertedIds[key].toString()
+        order_id: result.insertedIds[key].toString(),
       }));
     });
   },
 
-  getListOrder: async (id, role, status) => {
+  getListOrder: async (user_id, role, status) => {
     return handleDBOperation(async (collection) => {
       const query = { order_status: status };
-      query[role === "customer" ? "customer_id" : "seller_id"] = id;
+      query[role === "customer" ? "customer_id" : "seller_id"] = user_id;
 
       return await collection.find(query).toArray();
     });

@@ -331,15 +331,7 @@ const ProductController = {
 
   filterProducts: (req, res) =>
     handleRequest(req, res, async (req) => {
-      const {
-        value,
-        sku,
-        group,
-        rating,
-        address,
-        page = 1,
-        limit = 32,
-      } = req.body;
+      const { value, rating, address, page = 1, limit = 32 } = req.body;
 
       const query = {
         bool: {
@@ -367,33 +359,6 @@ const ProductController = {
           },
         });
         query.bool.minimum_should_match = 1;
-      }
-
-      if (sku || group) {
-        const variantQuery = {
-          nested: {
-            path: "variants",
-            query: {
-              bool: {
-                must: [],
-              },
-            },
-          },
-        };
-
-        if (sku) {
-          variantQuery.nested.query.bool.must.push({
-            match: { "variants.sku": sku },
-          });
-        }
-
-        if (group) {
-          variantQuery.nested.query.bool.must.push({
-            prefix: { "variants.sku": group },
-          });
-        }
-
-        query.bool.must.push(variantQuery);
       }
 
       if (rating) {
@@ -486,125 +451,6 @@ const ProductController = {
         page: parseInt(page),
         limit: parseInt(limit),
         products: simplifiedProducts,
-      };
-    }),
-
-  categoryFilterProducts: (req, res) =>
-    handleRequest(req, res, async (req) => {
-      const {
-        listCategory,
-        listAttribute,
-        priceMin,
-        priceMax,
-        rating,
-        page = 1,
-        limit = 12,
-        sortBy = "relevance",
-        sortOrder = "desc",
-      } = req.body;
-
-      const query = {
-        bool: {
-          must: [],
-          should: [],
-          filter: [],
-        },
-      };
-
-      // Handle category filtering
-      if (listCategory && listCategory.length > 0) {
-        query.bool.must.push({
-          bool: {
-            must: listCategory.map((category) => ({
-              match: { "categories.category_name": category },
-            })),
-          },
-        });
-      }
-
-      // Handle attribute filtering
-      if (listAttribute && listAttribute.length > 0) {
-        query.bool.should.push({
-          bool: {
-            should: listAttribute.map((attr) => ({
-              match: { "attributes.attributes_value": attr },
-            })),
-          },
-        });
-        query.bool.minimum_should_match = 1;
-      }
-
-      // Handle price range filtering
-      if (priceMin !== undefined || priceMax !== undefined) {
-        const priceRange = {};
-        if (priceMin !== undefined) priceRange.gte = parseFloat(priceMin);
-        if (priceMax !== undefined) priceRange.lte = parseFloat(priceMax);
-        query.bool.filter.push({ range: { price: priceRange } });
-      }
-
-      // Handle rating filtering
-      if (rating) {
-        const ratingRange = {
-          gte: parseFloat(rating),
-        };
-        query.bool.filter.push({ range: { rating: ratingRange } });
-      }
-
-      const sortOptions = {
-        relevance: "_score",
-        price: "price",
-        rating: "rating",
-        date: "createdAt",
-      };
-
-      const sort = [
-        { [sortOptions[sortBy] || "_score"]: { order: sortOrder } },
-      ];
-
-      const result = await client.search({
-        index: "products",
-        body: {
-          query,
-          sort,
-          from: (page - 1) * limit,
-          size: limit,
-          _source: [
-            "id",
-            "name",
-            "images",
-            "attributes",
-            "seller_id",
-            "price",
-            "rating",
-            "createdAt",
-          ],
-        },
-      });
-
-      const products = result.hits.hits.map((hit) => {
-        const { _id, _source } = hit;
-        const { name, images, attributes, seller_id, price, rating } = _source;
-
-        return {
-          id: _id,
-          name,
-          image: images && images.length > 0 ? images[0] : null,
-          price:
-            attributes && attributes.length > 0
-              ? Math.min(
-                  ...attributes.map((attr) => parseFloat(attr.attributes_price))
-                )
-              : parseFloat(price),
-          rating: parseFloat(rating),
-          seller_id,
-        };
-      });
-
-      return {
-        total: result.hits.total.value,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        products,
       };
     }),
 

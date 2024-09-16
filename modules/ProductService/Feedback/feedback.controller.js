@@ -10,7 +10,7 @@ const handleRequest = async (req, res, operation) => {
     res
       .status(error.status || 500)
       .json({ error: error.message || "Internal Server Error" });
-  } 
+  }
 };
 
 const FeedbackController = {
@@ -18,7 +18,7 @@ const FeedbackController = {
     handleRequest(req, res, async (req) => {
       const { product_id, rating, comment, images = [] } = req.body;
       const user_id = req.user._id.toString();
-      const product = await ProductModel.getById(product_id);
+      const product = await ProductModel.getProductById(product_id);
       const is_owner = user_id === product.seller_id;
 
       const feedbackData = {
@@ -80,11 +80,18 @@ const FeedbackController = {
       const { productId } = req.params;
       const { page = 1, limit = 10 } = req.query;
       const skip = (page - 1) * limit;
-      const feedbacks = await FeedbackModel.getByProduct(productId, skip, limit);
+      const feedbacks = await FeedbackModel.getByProduct(
+        productId,
+        skip,
+        limit
+      );
 
       const feedbacksWithUserData = await Promise.all(
         feedbacks.map(async (feedback) => {
-          const user = await UserModel.getById(feedback.user_id, "customer");
+          const user = await UserModel.getUserById(
+            feedback.user_id,
+            "customer"
+          );
           return { ...feedback, username: user.username };
         })
       );

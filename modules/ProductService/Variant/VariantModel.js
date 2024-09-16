@@ -48,6 +48,11 @@ const VariantModel = {
       return result.insertedCount;
     }),
 
+  getVariantBySku: async (sku) =>
+    handleDBOperation(async (collection) => {
+      return await collection.findOne({ sku: sku });
+    }),
+
   getVariantByCategory: async (category_id) =>
     handleDBOperation(async (collection) => {
       return await collection
