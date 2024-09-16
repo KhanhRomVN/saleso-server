@@ -16,21 +16,21 @@ const handleRequest = async (req, res, operation) => {
 const FeedbackController = {
   create: (req, res) =>
     handleRequest(req, res, async (req) => {
-      const { product_id, rating, comment, images = [] } = req.body;
-      const user_id = req.user._id.toString();
+      const { product_id, rating, comment, images = [], reply = {} } = req.body;
+      const customer_id = req.user._id.toString();
       const product = await ProductModel.getProductById(product_id);
-      const is_owner = user_id === product.seller_id;
+      const seller_id = product.seller_id;
 
       const feedbackData = {
-        user_id,
-        is_owner,
+        customer_id,
         product_id,
-        owner_id: product.seller_id,
+        seller_id,
         rating,
         comment,
         images,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        reply,
+        created_at: new Date(),
+        updated_at: new Date(),
       };
 
       await FeedbackModel.create(feedbackData);
@@ -39,21 +39,21 @@ const FeedbackController = {
 
   reply: (req, res) =>
     handleRequest(req, res, async (req) => {
-      const { feedbackId } = req.params;
+      const { feedback_id } = req.params;
       const { comment } = req.body;
-      const user_id = req.user._id.toString();
-      const feedback = await FeedbackModel.getById(feedbackId);
-      if (user_id !== feedback.owner_id) {
+      const seller_id = req.user._id.toString();
+      const feedback = await FeedbackModel.getFeedbackById(feedback_id);
+      if (seller_id !== feedback.seller_id) {
         throw new Error("Unauthorized to reply to this feedback");
       }
 
       const replyData = {
         comment,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        created_at: new Date(),
+        updated_at: new Date(),
       };
 
-      await FeedbackModel.reply(feedbackId, replyData);
+      await FeedbackModel.reply(feedback_id, replyData);
       return { message: "Feedback replied successfully" };
     }),
 
@@ -99,40 +99,21 @@ const FeedbackController = {
       return feedbacksWithUserData;
     }),
 
-  getFiltered: async (req, res) =>
+  getBySeller: async (req, res) =>
     handleRequest(req, res, async (req) => {
-      const { product_id, user_id, rating, page = 1, limit = 10 } = req.query;
-      const owner_id = req.user._id.toString();
-      const skip = (page - 1) * limit;
+      const { product_id, customer_id, page = 1, limit = 10 } = req.body;
+      const seller_id = req.user._id.toString();
 
       const params = {
-        owner_id,
+        seller_id,
         product_id,
-        user_id,
-        rating: rating ? parseInt(rating) : undefined,
-        skip,
+        customer_id,
+        page: parseInt(page),
         limit: parseInt(limit),
       };
 
-      const feedbackList = await FeedbackModel.getFiltered(params);
-
-      const enrichedFeedbackList = await Promise.all(
-        feedbackList.map(async (feedback) => {
-          const [user, product] = await Promise.all([
-            UserModel.getById(feedback.user_id, "customer"),
-            ProductModel.getById(feedback.product_id),
-          ]);
-
-          return {
-            ...feedback,
-            username: user.username,
-            product_name: product.name,
-            product_image: product.images[0] || null,
-          };
-        })
-      );
-
-      return enrichedFeedbackList;
+      const feedbackList = await FeedbackModel.getBySeller(params);
+      return feedbackList;
     }),
 
   getProductRating: (req, res) =>

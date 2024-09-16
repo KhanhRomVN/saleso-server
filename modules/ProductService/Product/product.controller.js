@@ -111,6 +111,7 @@ const ProductController = {
 
   getProductsBySellerId: (req, res) =>
     handleRequest(req, res, async (req) => {
+      const { minimum = false } = req.body;
       const products = await ProductModel.getListProductBySellerId(
         req.user._id.toString()
       );
@@ -133,6 +134,16 @@ const ProductController = {
           (total, variant) => total + variant.stock,
           0
         );
+
+        if (minimum) {
+          return {
+            _id: product._id,
+            name: product.name,
+            image: product.images[0] || null,
+            price: price,
+            stock: stock,
+          };
+        }
 
         const applied_discounts = [
           ...product.upcoming_discounts,

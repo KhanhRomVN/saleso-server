@@ -5,16 +5,16 @@ const router = express.Router();
 
 const routes = [
   {
-    method: "get",
-    path: "/",
-    middleware: [authCustomerToken],
-    handler: WishlistController.getWishlist,
-  },
-  {
     method: "post",
     path: "/items/:product_id",
     middleware: [authCustomerToken],
     handler: WishlistController.addToWishlist,
+  },
+  {
+    method: "get",
+    path: "/",
+    middleware: [authCustomerToken],
+    handler: WishlistController.getWishlist,
   },
   {
     method: "delete",

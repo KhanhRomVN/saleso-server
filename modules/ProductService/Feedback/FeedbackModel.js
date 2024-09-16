@@ -4,20 +4,19 @@ const { ObjectId } = require("mongodb");
 
 const COLLECTION_NAME = "feedbacks";
 const COLLECTION_SCHEMA = Joi.object({
-  user_id: Joi.string().required(),
-  is_owner: Joi.boolean().required(),
+  customer_id: Joi.string().required(),
   product_id: Joi.string().required(),
-  owner_id: Joi.string().required(),
+  seller_id: Joi.string().required(),
   rating: Joi.number().min(1).max(5).required(),
   comment: Joi.string().required(),
-  images: Joi.array().items(Joi.string()),  
+  images: Joi.array().items(Joi.string()),
   reply: Joi.object({
     comment: Joi.string().required(),
-    createdAt: Joi.date().default(Date.now),
-    updatedAt: Joi.date().default(Date.now),
+    created_at: Joi.date().default(Date.now),
+    updated_at: Joi.date().default(Date.now),
   }),
-  createdAt: Joi.date().default(Date.now),
-  updatedAt: Joi.date().default(Date.now),
+  created_at: Joi.date().default(Date.now),
+  updated_at: Joi.date().default(Date.now),
 }).options({ abortEarly: false });
 
 const handleDBOperation = async (operation) => {
@@ -35,8 +34,7 @@ const FeedbackModel = {
     handleDBOperation(async (collection) => {
       const { error } = COLLECTION_SCHEMA.validate(feedbackData);
       if (error) throw new Error(error.details[0].message);
-      const result = await collection.insertOne(feedbackData);
-      return result.insertedId;
+      await collection.insertOne(feedbackData);
     }),
 
   reply: async (feedbackId, replyData) =>
@@ -52,7 +50,7 @@ const FeedbackModel = {
       await collection.deleteOne({ _id: new ObjectId(feedbackId) });
     }),
 
-  getById: async (feedbackId) =>
+  getFeedbackById: async (feedbackId) =>
     handleDBOperation(async (collection) => {
       return await collection.findOne({ _id: new ObjectId(feedbackId) });
     }),
@@ -61,18 +59,23 @@ const FeedbackModel = {
     handleDBOperation(async (collection) => {
       return await collection
         .find({ product_id: productId })
-        .sort({ createdAt: -1 })
+        .sort({ created_at: -1 })
         .skip(skip)
         .limit(limit)
         .toArray();
     }),
 
-  getFiltered: async ({ owner_id, product_id, user_id, rating, skip, limit }) =>
+  getBySeller: async ({ seller_id, product_id, customer_id, page, limit }) =>
     handleDBOperation(async (collection) => {
-      const filters = { owner_id, ...(product_id && { product_id }), ...(user_id && { user_id }), ...(rating && { rating }) };
+      const filters = {
+        seller_id,
+        ...(product_id && { product_id }),
+        ...(customer_id && { customer_id }),
+      };
+      const skip = (page - 1) * limit;
       return await collection
         .find(filters)
-        .sort({ createdAt: -1 })
+        .sort({ created_at: -1 })
         .skip(skip)
         .limit(limit)
         .toArray();

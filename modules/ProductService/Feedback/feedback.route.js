@@ -16,7 +16,7 @@ const routes = [
   },
   {
     method: "post",
-    path: "/reply/:feedbackId",
+    path: "/reply/:feedback_id",
     middleware: [authSellerToken],
     handler: FeedbackController.reply,
   },
@@ -32,10 +32,10 @@ const routes = [
     handler: FeedbackController.getByProduct,
   },
   {
-    method: "get",
-    path: "/seller",
+    method: "post",
+    path: "/by-seller",
     middleware: [authSellerToken],
-    handler: FeedbackController.getFiltered,
+    handler: FeedbackController.getBySeller,
   },
   {
     method: "get",

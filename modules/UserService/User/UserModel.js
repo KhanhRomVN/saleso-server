@@ -5,7 +5,7 @@ const bcrypt = require("bcrypt");
 const saltRounds = 10;
 
 const COLLECTION_SCHEMA = Joi.object({
-  username: Joi.string().optional(),
+  username: Joi.string().optional(),  
   email: Joi.string().email().required(),
   password: Joi.string().required(),
   register_at: Joi.date().default(() => new Date()),

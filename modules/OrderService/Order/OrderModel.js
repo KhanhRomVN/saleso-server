@@ -91,6 +91,32 @@ const OrderModel = {
       return await collection.findOne({ _id: new ObjectId(order_id) });
     });
   },
+
+  acceptOrder: async (order_id, seller_id) => {
+    return handleDBOperation(async (collection) => {
+      const result = await collection.updateOne(
+        { _id: new ObjectId(order_id), seller_id: seller_id },
+        { $set: { order_status: "accepted", updated_at: new Date() } }
+      );
+      if (result.modifiedCount === 0) {
+        throw new Error("Order not found or status not changed");
+      }
+      return { message: "Order accepted successfully" };
+    });
+  },
+
+  refuseOrder: async (order_id, seller_id) => {
+    return handleDBOperation(async (collection) => {
+      const result = await collection.updateOne(
+        { _id: new ObjectId(order_id), seller_id: seller_id },
+        { $set: { order_status: "refused", updated_at: new Date() } }
+      );
+      if (result.modifiedCount === 0) {
+        throw new Error("Order not found or status not changed");
+      }
+      return { message: "Order refused successfully" };
+    });
+  },
 };
 
 module.exports = OrderModel;

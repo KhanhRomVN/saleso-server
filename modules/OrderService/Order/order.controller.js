@@ -4,6 +4,7 @@ const {
   PaymentModel,
   CartModel,
   VariantModel,
+  UserModel,
 } = require("../../../models");
 const logger = require("../../../config/logger");
 const { startSession } = require("../../../config/mongoDB");
@@ -118,28 +119,52 @@ const OrderController = {
       const role = req.user.role;
       const orders = await OrderModel.getListOrder(user_id, role, status);
 
-      const processedOrders = await Promise.all(
+      return await Promise.all(
         orders.map(async (order) => {
-          // Step 1: Remove unnecessary keys
-          const { applied_discount, updated_at, ...cleanedOrder } = order;
+          if (role === "seller") {
+            const {
+              _id,
+              product_id,
+              customer_id,
+              quantity,
+              shipping_address,
+              order_status,
+            } = order;
+            const product = await ProductModel.getProductById(product_id);
+            const customer = await UserModel.getUserById(
+              customer_id,
+              "customer"
+            );
+            return {
+              _id,
+              product_id,
+              product_name: product ? product.name : null,
+              product_image: product ? product.images[0] || null : null,
+              customer_id,
+              customer_username: customer ? customer.username : null,
+              total_amount: order.total_amount,
+              quantity,
+              shipping_address,
+              order_status,
+            };
+          } else {
+            // Customer role: return all fields except applied_discount and updated_at
+            const { applied_discount, updated_at, ...cleanedOrder } = order;
 
-          // Step 2: Get variant name
-          const variant = await VariantModel.getVariantBySku(order.sku);
-          cleanedOrder.sku_name = variant ? variant.variant : null;
+            const variant = await VariantModel.getVariantBySku(order.sku);
+            cleanedOrder.sku_name = variant ? variant.variant : null;
 
-          // Step 3: Get product name and image
-          const product = await ProductModel.getProductById(order.product_id);
-          if (product) {
-            cleanedOrder.product_name = product.name;
-            cleanedOrder.product_image = product.images[0] || null;
-            cleanedOrder.product_address = product.address;
+            const product = await ProductModel.getProductById(order.product_id);
+            if (product) {
+              cleanedOrder.product_name = product.name;
+              cleanedOrder.product_image = product.images[0] || null;
+              cleanedOrder.product_address = product.address;
+            }
+
+            return cleanedOrder;
           }
-
-          return cleanedOrder;
         })
       );
-
-      return processedOrders;
     }),
 
   getOrder: (req, res) =>
@@ -160,9 +185,21 @@ const OrderController = {
       return { message: "Order cancel successfully" };
     }),
 
-  acceptOrder: (req, res) => handleRequest(req, res, async (req) => {}),
+  acceptOrder: (req, res) =>
+    handleRequest(req, res, async (req) => {
+      const { order_id } = req.params;
+      const seller_id = req.user._id.toString();
+      await OrderModel.acceptOrder(order_id, seller_id);
+      return { message: "Order accepted successfully" };
+    }),
 
-  refuseOrder: (req, res) => handleRequest(req, res, async (req) => {}),
+  refuseOrder: (req, res) =>
+    handleRequest(req, res, async (req) => {
+      const { order_id } = req.params;
+      const seller_id = req.user._id.toString();
+      await OrderModel.refuseOrder(order_id, seller_id);
+      return { message: "Order refused successfully" };
+    }),
 };
 
 module.exports = OrderController;
