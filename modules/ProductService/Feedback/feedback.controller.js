@@ -86,17 +86,15 @@ const FeedbackController = {
         limit
       );
 
-      const feedbacksWithUserData = await Promise.all(
+      return await Promise.all(
         feedbacks.map(async (feedback) => {
           const user = await UserModel.getUserById(
-            feedback.user_id,
+            feedback.customer_id,
             "customer"
           );
           return { ...feedback, username: user.username };
         })
       );
-
-      return feedbacksWithUserData;
     }),
 
   getBySeller: async (req, res) =>
@@ -113,7 +111,15 @@ const FeedbackController = {
       };
 
       const feedbackList = await FeedbackModel.getBySeller(params);
-      return feedbackList;
+      return await Promise.all(
+        feedbackList.map(async (feedback) => {
+          const user = await UserModel.getUserById(
+            feedback.customer_id,
+            "customer"
+          );
+          return { ...feedback, customer_username: user.username };
+        })
+      );
     }),
 
   getProductRating: (req, res) =>

@@ -24,8 +24,9 @@ const ReversalController = {
   reversalOrder: (req, res) =>
     handleRequest(req, res, async (req) => {
       const customer_id = req.user._id.toString();
-      const customer = await UserModel.getUserById(customer_id, "customer");
-      const { order_id, reason, images = [] } = req.body;
+      console.log(req.params);
+      const { order_id } = req.params;
+      const { reason } = req.body;
       const order = await OrderModel.getOrderById(order_id);
       if (order.customer_id !== customer_id) {
         return { error: "You do not have authority to return this order" };
@@ -35,14 +36,10 @@ const ReversalController = {
         customer_id,
         seller_id: order.seller_id,
         reason,
-        images,
-        logs: [
-          `The account has the nickname [${customer.username}] have returned the order to you and request processing as soon as possible`,
-        ],
-        reversal_status: "pending",
+        status: "pending",
       };
       await ReversalModel.reversalOrder(reversalData);
-      return { success: "Your return request has been successful" };
+      return { message: "Your return request has been successful" };
     }),
 
   getListReversal: (req, res) =>
@@ -55,40 +52,35 @@ const ReversalController = {
   getReversal: (req, res) =>
     handleRequest(req, res, async (req) => {
       const { reversal_id } = req.params;
-      return await ReversalModel.getReversalById(reversal_id);
+      const seller_id = req.user._id.toString();
+      const reversal = await ReversalModel.getReversalById(reversal_id);
+      if (reversal.seller_id !== seller_id) {
+        return { error: "You do not have authority to view this return" };
+      }
+      return reversal;
     }),
 
-  reversalAsProductReplacement: (req, res) =>
+  acceptReversal: (req, res) =>
     handleRequest(req, res, async (req) => {
+      const { order_id } = req.body;
+      const seller_id = req.user._id.toString();
+      const order = await OrderModel.getOrderById(order_id);
+      if (order.seller_id !== seller_id) {
+        return { error: "You do not have authority to accept this return" };
+      }
       const { reversal_id } = req.params;
-      const reversal = await ReversalModel.getReversalById(reversal_id);
-      const order = await OrderModel.getOrderById(reversal.order_id);
-      // Update (reduce) product quantity
-      await ProductModel.updateStock(
-        order.product_id,
-        order.quantity,
-        order.selected_attributes_value
-      );
-      // Accept returns - update status and update method
-      return await ReversalModel.acceptReversal("replace-product", reversal_id);
+      return await ReversalModel.acceptReversal(reversal_id);
     }),
 
-  reversalAsRefund: (req, res) =>
+  refuseReversal: (req, res) =>
     handleRequest(req, res, async (req) => {
       const { reversal_id } = req.params;
+      const seller_id = req.user._id.toString();
       const reversal = await ReversalModel.getReversalById(reversal_id);
-      const order = await OrderModel.getOrderById(reversal.order_id);
-      const refundData = {
-        order_id: reversal.order_id,
-        customer_id: order.customer_id,
-        seller_id: order.seller_id,
-        refund_type: "reversal_order",
-        refund_status: "processing",
-        logs: ["You want to process your returned order with a refund"],
-      };
-      await RefundModel.acceptReversalAsRefund(refundData);
-      // Accept returns - update status and update method
-      return await ReversalModel.acceptReversal("refund", reversal_id);
+      if (reversal.seller_id !== seller_id) {
+        return { error: "You do not have authority to refuse this return" };
+      }
+      return await ReversalModel.refuseReversal(reversal_id);
     }),
 };
 

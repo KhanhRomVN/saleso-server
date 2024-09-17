@@ -11,7 +11,7 @@ const routes = [
   // When a customer wants to reversal the product because there is a problem with the product
   {
     method: "post",
-    path: "/",
+    path: "/:order_id",
     middleware: [authCustomerToken],
     handler: ReversalController.reversalOrder,
   },
@@ -30,13 +30,13 @@ const routes = [
     method: "get",
     path: "/replace-product",
     middleware: [authSellerToken],
-    handler: ReversalController.reversalAsProductReplacement,
+    handler: ReversalController.acceptReversal,
   },
   {
     method: "get",
-    path: "/get/reversal",
+    path: "/refuse-reversal",
     middleware: [authSellerToken],
-    handler: ReversalController.reversalAsRefund,
+    handler: ReversalController.refuseReversal,
   },
 ];
 
