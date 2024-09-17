@@ -5,6 +5,7 @@ const {
   CartModel,
   VariantModel,
   UserModel,
+  ReversalModel,
 } = require("../../../models");
 const logger = require("../../../config/logger");
 const { startSession } = require("../../../config/mongoDB");
@@ -121,6 +122,8 @@ const OrderController = {
 
       return await Promise.all(
         orders.map(async (order) => {
+          let orderData = {};
+
           if (role === "seller") {
             const {
               _id,
@@ -135,7 +138,7 @@ const OrderController = {
               customer_id,
               "customer"
             );
-            return {
+            orderData = {
               _id,
               product_id,
               product_name: product ? product.name : null,
@@ -150,19 +153,31 @@ const OrderController = {
           } else {
             // Customer role: return all fields except applied_discount and updated_at
             const { applied_discount, updated_at, ...cleanedOrder } = order;
+            orderData = cleanedOrder;
 
             const variant = await VariantModel.getVariantBySku(order.sku);
-            cleanedOrder.sku_name = variant ? variant.variant : null;
+            orderData.sku_name = variant ? variant.variant : null;
 
             const product = await ProductModel.getProductById(order.product_id);
             if (product) {
-              cleanedOrder.product_name = product.name;
-              cleanedOrder.product_image = product.images[0] || null;
-              cleanedOrder.product_address = product.address;
+              orderData.product_name = product.name;
+              orderData.product_image = product.images[0] || null;
+              orderData.product_address = product.address;
             }
-
-            return cleanedOrder;
           }
+
+          // Add reversal information if status is "reversed"
+          if (status === "reversed") {
+            const reversal = await ReversalModel.getReversalByOrderId(
+              order._id.toString()
+            );
+            if (reversal) {
+              orderData.reversal_reason = reversal.reason;
+              orderData.reversal_status = reversal.status;
+            }
+          }
+
+          return orderData;
         })
       );
     }),

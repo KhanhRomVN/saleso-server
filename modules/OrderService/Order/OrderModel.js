@@ -13,7 +13,9 @@ const COLLECTION_SCHEMA = Joi.object({
   shipping_address: Joi.string().required(),
   applied_discount: Joi.string(),
   total_amount: Joi.number().required(),
-  order_status: Joi.string().valid("pending", "accepted", "refused").required(),
+  order_status: Joi.string()
+    .valid("pending", "accepted", "refused", "reversed")
+    .required(),
   create_at: Joi.date().default(Date.now),
   update_at: Joi.date().default(Date.now),
 }).options({ abortEarly: false });

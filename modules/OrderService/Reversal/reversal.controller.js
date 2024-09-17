@@ -24,7 +24,6 @@ const ReversalController = {
   reversalOrder: (req, res) =>
     handleRequest(req, res, async (req) => {
       const customer_id = req.user._id.toString();
-      console.log(req.params);
       const { order_id } = req.params;
       const { reason } = req.body;
       const order = await OrderModel.getOrderById(order_id);
@@ -62,25 +61,24 @@ const ReversalController = {
 
   acceptReversal: (req, res) =>
     handleRequest(req, res, async (req) => {
-      const { order_id } = req.body;
+      const { order_id } = req.params;
       const seller_id = req.user._id.toString();
-      const order = await OrderModel.getOrderById(order_id);
-      if (order.seller_id !== seller_id) {
+      const reversal = await ReversalModel.getReversalByOrderId(order_id);
+      if (reversal.seller_id !== seller_id) {
         return { error: "You do not have authority to accept this return" };
       }
-      const { reversal_id } = req.params;
-      return await ReversalModel.acceptReversal(reversal_id);
+      return await ReversalModel.acceptReversal(order_id);
     }),
 
   refuseReversal: (req, res) =>
     handleRequest(req, res, async (req) => {
-      const { reversal_id } = req.params;
+      const { order_id } = req.params;
       const seller_id = req.user._id.toString();
-      const reversal = await ReversalModel.getReversalById(reversal_id);
+      const reversal = await ReversalModel.getReversalByOrderId(order_id);
       if (reversal.seller_id !== seller_id) {
         return { error: "You do not have authority to refuse this return" };
       }
-      return await ReversalModel.refuseReversal(reversal_id);
+      return await ReversalModel.refuseReversal(order_id);
     }),
 };
 

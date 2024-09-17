@@ -8,7 +8,6 @@ const ReversalController = require("./reversal.controller");
 const router = express.Router();
 
 const routes = [
-  // When a customer wants to reversal the product because there is a problem with the product
   {
     method: "post",
     path: "/:order_id",
@@ -27,14 +26,14 @@ const routes = [
     handler: ReversalController.getReversal,
   },
   {
-    method: "get",
-    path: "/replace-product",
+    method: "put",
+    path: "/accept/:order_id",
     middleware: [authSellerToken],
     handler: ReversalController.acceptReversal,
   },
   {
-    method: "get",
-    path: "/refuse-reversal",
+    method: "put",
+    path: "/refuse/:order_id",
     middleware: [authSellerToken],
     handler: ReversalController.refuseReversal,
   },

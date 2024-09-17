@@ -44,21 +44,24 @@ const ReversalModel = {
     });
   },
 
-  acceptReversal: async (reversal_id) => {
+  getReversalByOrderId: async (order_id) => {
+    return handleDBOperation(async (collection) => {
+      return await collection.findOne({ order_id });
+    });
+  },
+
+  acceptReversal: async (order_id) => {
     return handleDBOperation(async (collection) => {
       await collection.updateOne(
-        { _id: new ObjectId(reversal_id) },
+        { order_id },
         { $set: { status: "accepted" } }
       );
     });
   },
 
-  refuseReversal: async (reversal_id) => {
+  refuseReversal: async (order_id) => {
     return handleDBOperation(async (collection) => {
-      await collection.updateOne(
-        { _id: new ObjectId(reversal_id) },
-        { $set: { status: "refused" } }
-      );
+      await collection.updateOne({ order_id }, { $set: { status: "refused" } });
     });
   },
 };
